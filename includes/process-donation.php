@@ -516,10 +516,10 @@ function give_verify_minimum_price( $amount_range = 'minimum' ) {
 	if ( ! $verified_stat ) {
 		switch ( $amount_range ) {
 			case 'minimum' :
-				$verified_stat = ( give_get_form_minimum_price( $form_id ) > $amount ) ? false : true;
+				$verified_stat = give_get_form_minimum_price( $form_id ) > $amount;
 				break;
 			case 'maximum' :
-				$verified_stat = ( give_get_form_maximum_price( $form_id ) < $amount ) ? false : true;
+				$verified_stat = give_get_form_maximum_price( $form_id ) < $amount;
 				break;
 		}
 	}
