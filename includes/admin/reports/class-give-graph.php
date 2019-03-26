@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Admin/Reports
- * @copyright   Copyright (c) 2012, WordImpress
+ * @copyright   Copyright (c) 2012, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -178,8 +178,6 @@ class Give_Graph {
 
 		$yaxis_count = 1;
 
-		$this->load_scripts();
-
 		ob_start();
 		?>
 		<script type="text/javascript">
@@ -250,8 +248,11 @@ class Give_Graph {
 							mode        : "<?php echo $this->options['y_mode']; ?>",
 							timeFormat  : "<?php echo $this->options['y_mode'] == 'time' ? $this->options['time_format'] : ''; ?>",
 							<?php if( $this->options['y_mode'] != 'time' ) : ?>
-							tickDecimals: <?php echo $this->options['y_decimals']; ?>
+							tickDecimals: <?php echo $this->options['y_decimals']; ?>,
 							<?php endif; ?>
+							tickFormatter: function(val) {
+								return val.toString().replace(/\B(?=(?:\d{3})+(?!\d))/g, give_vars.thousands_separator);
+							},
 						}
 					}
 				);

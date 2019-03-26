@@ -5,7 +5,7 @@
  * This class handles batch processing of deleting test transactions
  *
  * @subpackage  Admin/Tools/Give_Tools_Delete_Test_Transactions
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.5
  */
@@ -44,6 +44,15 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 	public $per_step = 30;
 
 	/**
+	 * Constructor.
+	 */
+	public function __construct( $_step = 1 ) {
+		parent::__construct( $_step );
+
+		$this->is_writable = true;
+	}
+
+	/**
 	 * Get the Export Data
 	 *
 	 * @access public
@@ -53,8 +62,6 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 	 * @return array|bool $data The data for the CSV file
 	 */
 	public function get_data() {
-		global $wpdb;
-
 		$items = $this->get_stored_data( 'give_temp_delete_test_ids' );
 
 		if ( ! is_array( $items ) ) {
@@ -66,61 +73,10 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 		$meta_table = __give_v20_bc_table_details( 'payment' );
 
 		if ( $step_items ) {
-
-			$step_ids = array(
-				'other' => array(),
-			);
-
 			foreach ( $step_items as $item ) {
-
-				$step_ids['other'][] = $item['id'];
-
+				// Delete the main payment.
+				give_delete_donation( absint( $item['id'] ) );
 			}
-
-			$sql = array();
-
-			foreach ( $step_ids as $type => $ids ) {
-
-				if ( empty( $ids ) ) {
-					continue;
-				}
-
-				$parent_query = '';
-
-				switch ( $type ) {
-					case 'other':
-
-						$temp_ids = implode( ',', $ids );
-
-						// Get all the test logs of the donations ids.
-						$parent_query = "SELECT DISTINCT post_id as id FROM $wpdb->postmeta WHERE meta_key = '_give_log_payment_id' AND meta_value IN ( $temp_ids )";
-						$parent_ids   = $wpdb->get_results( $parent_query, 'ARRAY_A' );
-
-						// List of all test logs.
-						if ( $parent_ids ) {
-							foreach ( $parent_ids as $parent_id ) {
-								// Adding all the test log in post ids that are going to get deleted.
-								$ids[] = $parent_id['id'];
-							}
-						}
-						$ids = implode( ',', $ids );
-
-						$sql[] = "DELETE FROM $wpdb->posts WHERE id IN ($ids)";
-						$sql[] = "DELETE FROM {$meta_table['name']} WHERE {$meta_table['column']['id']} IN ($ids)";
-						$sql[] = "DELETE FROM $wpdb->comments WHERE comment_post_ID IN ($ids)";
-						$sql[] = "DELETE FROM $wpdb->commentmeta WHERE comment_id NOT IN (SELECT comment_ID FROM $wpdb->comments)";
-						break;
-				}
-
-			}
-
-			if ( ! empty( $sql ) ) {
-				foreach ( $sql as $query ) {
-					$wpdb->query( $query );
-				}
-				do_action( 'give_delete_log_cache' );
-			}
-
 			return true;
 		}
 
@@ -180,15 +136,10 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 
 			return true;
 		} else {
-			update_option( 'give_earnings_total', give_get_total_earnings( true ) );
+			update_option( 'give_earnings_total', give_get_total_earnings( true ), false );
 			Give_Cache::delete( Give_Cache::get_key( 'give_estimated_monthly_stats' ) );
 
 			$this->delete_data( 'give_temp_delete_test_ids' );
-
-			// Reset the sequential order numbers
-			if ( give_get_option( 'enable_sequential' ) ) {
-				delete_option( 'give_last_payment_number' );
-			}
 
 			$this->done    = true;
 			$this->message = __( 'Test transactions successfully deleted.', 'give' );
@@ -201,11 +152,7 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 	 * Headers
 	 */
 	public function headers() {
-		ignore_user_abort( true );
-
-		if ( ! give_is_func_disabled( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
-			set_time_limit( 0 );
-		}
+		give_ignore_user_abort();
 	}
 
 	/**
@@ -240,8 +187,17 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 			$args = apply_filters( 'give_tools_reset_stats_total_args', array(
 				'post_status' => 'any',
 				'number'      => - 1,
-				'meta_key'    => '_give_payment_mode',
-				'meta_value'  => 'test'
+				'meta_query' => array(
+					'relation' => 'OR',
+					array(
+						'key'   => '_give_payment_mode',
+						'value' => 'test',
+					),
+					array(
+						'key'   => '_give_payment_gateway',
+						'value' => 'manual',
+					),
+				),
 			) );
 
 			$posts    = new Give_Payments_Query( $args );
@@ -254,7 +210,7 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 					'type' => 'give_payment',
 				);
 			}
-			
+
 			// Allow filtering of items to remove with an unassociative array for each item.
 			// The array contains the unique ID of the item, and a 'type' for you to use in the execution of the get_data method.
 			$items = apply_filters( 'give_delete_test_items', $items );
@@ -277,7 +233,16 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 		global $wpdb;
 		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM $wpdb->options WHERE option_name = '%s'", $key ) );
 
-		return empty( $value ) ? false : maybe_unserialize( $value );
+		if ( empty( $value ) ) {
+			return false;
+		}
+
+		$maybe_json = json_decode( $value );
+		if ( ! is_null( $maybe_json ) ) {
+			$value = json_decode( $value, true );
+		}
+
+		return $value;
 	}
 
 	/**
@@ -293,7 +258,7 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 	private function store_data( $key, $value ) {
 		global $wpdb;
 
-		$value = maybe_serialize( $value );
+		$value = is_array( $value ) ? wp_json_encode( $value ) : esc_attr( $value );
 
 		$data = array(
 			'option_name'  => $key,
@@ -322,6 +287,21 @@ class Give_Tools_Delete_Test_Transactions extends Give_Batch_Export {
 	private function delete_data( $key ) {
 		global $wpdb;
 		$wpdb->delete( $wpdb->options, array( 'option_name' => $key ) );
+	}
+
+	/**
+	 * Unset the properties specific to the donors export.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array $request
+	 * @param Give_Batch_Export $export
+	 */
+	public function unset_properties( $request, $export ) {
+		if ( $export->done ) {
+			// Delete all the donation ids.
+			$this->delete_data( 'give_temp_delete_test_ids' );
+		}
 	}
 
 }

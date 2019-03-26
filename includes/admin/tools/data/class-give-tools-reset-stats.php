@@ -5,7 +5,7 @@
  * This class handles batch processing of resetting donations and income stats.
  *
  * @subpackage  Admin/Tools/Give_Tools_Reset_Stats
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.5
  */
@@ -45,6 +45,15 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 	 * @var integer
 	 */
 	public $per_step = 30;
+
+	/**
+	 * Constructor.
+	 */
+	public function __construct( $_step = 1 ) {
+		parent::__construct( $_step );
+
+		$this->is_writable = true;
+	}
 
 	/**
 	 * Get the Export Data
@@ -104,17 +113,64 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 
 				switch ( $type ) {
 					case 'customers':
-						$sql[]      = "DELETE FROM $wpdb->donors WHERE id IN ($ids)";
+
+						// Delete all the Give related donor and its meta.
+						$sql[] = "DELETE FROM {$wpdb->donors}";
+						$sql[] = "DELETE FROM {$wpdb->donormeta}";
 						break;
 					case 'forms':
 						$sql[] = "UPDATE {$meta_table['name']} SET meta_value = 0 WHERE meta_key = '_give_form_sales' AND {$meta_table['column']['id']} IN ($ids)";
 						$sql[] = "UPDATE {$meta_table['name']} SET meta_value = 0.00 WHERE meta_key = '_give_form_earnings' AND {$meta_table['column']['id']} IN ($ids)";
 						break;
 					case 'other':
-						$sql[] = "DELETE FROM $wpdb->posts WHERE id IN ($ids)";
-						$sql[] = "DELETE FROM $wpdb->postmeta WHERE post_id IN ($ids)";
-						$sql[] = "DELETE FROM $wpdb->comments WHERE comment_post_ID IN ($ids)";
-						$sql[] = "DELETE FROM $wpdb->commentmeta WHERE comment_id NOT IN (SELECT comment_ID FROM $wpdb->comments)";
+
+						// Delete main entries of forms and donations exists in posts table.
+						$sql[] = "DELETE FROM {$wpdb->posts} WHERE id IN ($ids)";
+
+						// Delete all the meta rows of form exists in form meta table.
+						$sql[] = "DELETE FROM {$wpdb->formmeta}";
+
+						// Delete all the meta rows of donation exists in donation meta table.
+						$sql[] = "DELETE FROM {$wpdb->prefix}give_donationmeta";
+
+						// Delete all the Give related sequential ordering entries for donations.
+						$sql[] = "DELETE FROM {$wpdb->prefix}give_sequential_ordering WHERE payment_id IN ($ids)";
+
+						// Delete all the Give related comments and its meta.
+						$sql[] = "DELETE FROM {$wpdb->give_comments}";
+						$sql[] = "DELETE FROM {$wpdb->give_commentmeta}";
+
+						// Delete all the Give related logs and its meta.
+						$sql[] = "DELETE FROM {$wpdb->prefix}give_logs";
+						$sql[] = "DELETE FROM {$wpdb->logmeta}";
+
+						// Delete all the Give sessions data.
+						$sql[] = "DELETE FROM {$wpdb->prefix}give_sessions";
+
+						// Delete Give related categories and tags data from taxonomy tables.
+						$sql[] = $wpdb->prepare(
+							"
+							DELETE FROM $wpdb->terms
+							WHERE $wpdb->terms.term_id IN
+							(
+								SELECT $wpdb->term_taxonomy.term_id
+								FROM $wpdb->term_taxonomy
+								WHERE $wpdb->term_taxonomy.taxonomy = %s
+								OR $wpdb->term_taxonomy.taxonomy = %s
+							)
+							",
+							array( 'give_forms_category', 'give_forms_tag' )
+						);
+
+						$sql[] = $wpdb->prepare(
+							"
+							DELETE FROM $wpdb->term_taxonomy
+							WHERE $wpdb->term_taxonomy.taxonomy = %s
+							OR $wpdb->term_taxonomy.taxonomy = %s
+							",
+							array( 'give_forms_category', 'give_forms_tag' )
+						);
+
 						break;
 				}
 
@@ -125,7 +181,7 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 				}
 			}
 
-			if ( ! empty( $sql ) ) {
+			if ( is_array( $sql ) && count( $sql ) > 0 ) {
 				foreach ( $sql as $query ) {
 					$wpdb->query( $query );
 				}
@@ -194,15 +250,10 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 
 			return true;
 		} else {
-			update_option( 'give_earnings_total', 0 );
+			update_option( 'give_earnings_total', 0, false );
 			Give_Cache::delete( Give_Cache::get_key( 'give_estimated_monthly_stats' ) );
 
 			$this->delete_data( 'give_temp_reset_ids' );
-
-			// Reset the sequential order numbers
-			if ( give_get_option( 'enable_sequential' ) ) {
-				delete_option( 'give_last_payment_number' );
-			}
 
 			$this->done    = true;
 			$this->message = esc_html__( 'Donation forms, income, donations counts, and logs successfully reset.', 'give' );
@@ -215,11 +266,7 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 	 * Headers
 	 */
 	public function headers() {
-		ignore_user_abort( true );
-
-		if ( ! give_is_func_disabled( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
-			set_time_limit( 0 );
-		}
+		give_ignore_user_abort();
 	}
 
 	/**
@@ -299,9 +346,18 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 	 */
 	private function get_stored_data( $key ) {
 		global $wpdb;
-		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM $wpdb->options WHERE option_name = '%s'", $key ) );
+		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM $wpdb->options WHERE option_name = %s", $key ) );
 
-		return empty( $value ) ? false : maybe_unserialize( $value );
+		if ( empty( $value ) ) {
+			return false;
+		}
+
+		$maybe_json = json_decode( $value );
+		if ( ! is_null( $maybe_json ) ) {
+			$value = json_decode( $value, true );
+		}
+
+		return (array) $value;
 	}
 
 	/**
@@ -317,7 +373,7 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 	private function store_data( $key, $value ) {
 		global $wpdb;
 
-		$value = maybe_serialize( $value );
+		$value = is_array( $value ) ? wp_json_encode( $value ) : esc_attr( $value );
 
 		$data = array(
 			'option_name'  => $key,
@@ -348,6 +404,21 @@ class Give_Tools_Reset_Stats extends Give_Batch_Export {
 		$wpdb->delete( $wpdb->options, array(
 			'option_name' => $key,
 		) );
+	}
+
+	/**
+	 * Unset the properties specific to the donors export.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array $request
+	 * @param Give_Batch_Export $export
+	 */
+	public function unset_properties( $request, $export ) {
+		if ( $export->done ) {
+			// Delete all the donation ids.
+			$this->delete_data( 'give_temp_reset_ids' );
+		}
 	}
 
 }

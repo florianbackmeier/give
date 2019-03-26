@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_Settings_API
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU Public License
  * @since       1.8
  */
@@ -20,23 +20,14 @@ if ( ! class_exists( 'Give_Settings_API' ) ) :
 	 *
 	 * @sine 1.8
 	 */
-	class Give_Settings_API {
-
+	class Give_Settings_API extends Give_Settings_Page {
 		/**
-		 * Setting page id.
+		 * Flag to check if enable saving option for setting page or not
 		 *
-		 * @since 1.8
-		 * @var   string
+		 * @since 1.8.17
+		 * @var bool
 		 */
-		protected $id = '';
-
-		/**
-		 * Setting page label.
-		 *
-		 * @since 1.8
-		 * @var   string
-		 */
-		protected $label = '';
+		protected $enable_save = false;
 
 		/**
 		 * Constructor.
@@ -45,24 +36,7 @@ if ( ! class_exists( 'Give_Settings_API' ) ) :
 			$this->id    = 'api';
 			$this->label = esc_html__( 'API', 'give' );
 
-			add_filter( 'give-tools_tabs_array', array( $this, 'add_settings_page' ), 20 );
-			add_action( "give-tools_settings_{$this->id}_page", array( $this, 'output' ) );
-
-			// Render api field type.
-			add_action( 'give_admin_field_api', array( $this, 'render_api_field' ) );
-		}
-
-		/**
-		 * Add this page to settings.
-		 *
-		 * @since  1.8
-		 * @param  array $pages Lst of pages.
-		 * @return array
-		 */
-		public function add_settings_page( $pages ) {
-			$pages[ $this->id ] = $this->label;
-
-			return $pages;
+			parent::__construct();
 		}
 
 		/**
@@ -72,9 +46,6 @@ if ( ! class_exists( 'Give_Settings_API' ) ) :
 		 * @return array
 		 */
 		public function get_settings() {
-			// Hide save button.
-			$GLOBALS['give_hide_save_button'] = true;
-
 			// Get settings.
 			$settings = apply_filters( 'give_settings_api', array(
 				array(
@@ -104,31 +75,6 @@ if ( ! class_exists( 'Give_Settings_API' ) ) :
 
 			// Output.
 			return $settings;
-		}
-
-		/**
-		 * Output the settings.
-		 *
-		 * @since  1.8
-		 * @return void
-		 */
-		public function output() {
-			$settings = $this->get_settings();
-
-			Give_Admin_Settings::output_fields( $settings, 'give_settings' );
-		}
-
-
-		/**
-		 * Render api field.
-		 *
-		 * @since 2.0
-		 * @access public
-		 * @param $field
-		 */
-		public function render_api_field( $field ){
-			give_api_callback();
-			echo Give_Admin_Settings::get_field_description( $field );
 		}
 	}
 

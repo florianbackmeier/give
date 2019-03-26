@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions/Install
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -17,7 +17,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Install
  *
- * Runs on plugin install by setting up the post types, custom taxonomies, flushing rewrite rules to initiate the new 'donations' slug and also creates the plugin and populates the settings fields for those plugin pages. After successful install, the user is redirected to the Give Welcome screen.
+ * Runs on plugin install by setting up the post types, custom taxonomies, flushing rewrite rules to initiate the new
+ * 'donations' slug and also creates the plugin and populates the settings fields for those plugin pages. After
+ * successful install, the user is redirected to the Give Welcome screen.
  *
  * @since 1.0
  *
@@ -55,19 +57,15 @@ function give_install( $network_wide = false ) {
  * @return void
  */
 function give_run_install() {
-
 	$give_options = give_get_settings();
 
 	// Setup the Give Custom Post Types.
 	give_setup_post_types();
 
-	// Clear the permalinks.
-	flush_rewrite_rules( false );
-
 	// Add Upgraded From Option.
 	$current_version = get_option( 'give_version' );
 	if ( $current_version ) {
-		update_option( 'give_version_upgraded_from', $current_version );
+		update_option( 'give_version_upgraded_from', $current_version, false );
 	}
 
 	// Setup some default options.
@@ -79,7 +77,7 @@ function give_run_install() {
 	}
 
 	// Populate the default values.
-	update_option( 'give_settings', array_merge( $give_options, $options ) );
+	update_option( 'give_settings', array_merge( $give_options, $options ), false );
 
 	/**
 	 * Run plugin upgrades.
@@ -89,7 +87,7 @@ function give_run_install() {
 	do_action( 'give_upgrades' );
 
 	if ( GIVE_VERSION !== get_option( 'give_version' ) ) {
-		update_option( 'give_version', GIVE_VERSION );
+		update_option( 'give_version', GIVE_VERSION, false );
 	}
 
 	// Create Give roles.
@@ -97,12 +95,15 @@ function give_run_install() {
 	$roles->add_roles();
 	$roles->add_caps();
 
+	// Set api version, end point and refresh permalink.
 	$api = new Give_API();
-	update_option( 'give_default_api_version', 'v' . $api->get_version() );
+	$api->add_endpoint();
+	update_option( 'give_default_api_version', 'v' . $api->get_version(), false );
 
-	// Check for PHP Session support, and enable if available.
-	$give_sessions = new Give_Session();
-	$give_sessions->use_php_sessions();
+	flush_rewrite_rules();
+
+	// Create databases.
+	__give_register_tables();
 
 	// Add a temporary option to note that Give pages have been created.
 	Give_Cache::set( '_give_installed', $options, 30, true );
@@ -121,10 +122,35 @@ function give_run_install() {
 			'v189_upgrades_levels_post_meta',
 			'v1812_update_amount_values',
 			'v1812_update_donor_purchase_values',
+			'v1813_update_user_roles',
+			'v1813_update_donor_user_roles',
+			'v1817_update_donation_iranian_currency_code',
+			'v1817_cleanup_user_roles',
+			'v1818_assign_custom_amount_set_donation',
+			'v1818_give_worker_role_cleanup',
 			'v20_upgrades_form_metadata',
 			'v20_logs_upgrades',
 			'v20_move_metadata_into_new_table',
-			'v20_rename_donor_tables'
+			'v20_rename_donor_tables',
+			'v20_upgrades_donor_name',
+			'v20_upgrades_user_address',
+			'v20_upgrades_payment_metadata',
+			'v201_upgrades_payment_metadata',
+			'v201_add_missing_donors',
+			'v201_move_metadata_into_new_table',
+			'v201_logs_upgrades',
+			'v210_verify_form_status_upgrades',
+			'v213_delete_donation_meta',
+			'v215_update_donor_user_roles',
+			'v220_rename_donation_meta_type',
+			'v224_update_donor_meta',
+			'v224_update_donor_meta_forms_id',
+			'v230_move_donor_note',
+			'v230_move_donation_note',
+			'v230_delete_donor_wall_related_donor_data',
+			'v230_delete_donor_wall_related_comment_data',
+			'v240_update_form_goal_progress',
+			'v241_remove_sale_logs'
 		);
 
 		foreach ( $upgrade_routines as $upgrade ) {
@@ -139,24 +165,22 @@ function give_run_install() {
 
 	// Add the transient to redirect.
 	Give_Cache::set( '_give_activation_redirect', true, 30, true );
-
-	// Set 'Donation Form' meta box enabled by default.
-	give_nav_donation_metabox_enabled();
 }
 
 /**
  * Network Activated New Site Setup.
  *
- * When a new site is created when Give is network activated this function runs the appropriate install function to set up the site for Give.
+ * When a new site is created when Give is network activated this function runs the appropriate install function to set
+ * up the site for Give.
  *
  * @since      1.3.5
  *
- * @param  int $blog_id The Blog ID created.
- * @param  int $user_id The User ID set as the admin.
- * @param  string $domain The URL.
- * @param  string $path Site Path.
- * @param  int $site_id The Site ID.
- * @param  array $meta Blog Meta.
+ * @param  int    $blog_id The Blog ID created.
+ * @param  int    $user_id The User ID set as the admin.
+ * @param  string $domain  The URL.
+ * @param  string $path    Site Path.
+ * @param  int    $site_id The Site ID.
+ * @param  array  $meta    Blog Meta.
  */
 function give_on_create_blog( $blog_id, $user_id, $domain, $path, $site_id, $meta ) {
 
@@ -178,21 +202,23 @@ add_action( 'wpmu_new_blog', 'give_on_create_blog', 10, 6 );
  *
  * @since  1.4.3
  *
- * @param  array $tables The tables to drop.
- * @param  int $blog_id The Blog ID being deleted.
+ * @param  array $tables  The tables to drop.
+ * @param  int   $blog_id The Blog ID being deleted.
  *
  * @return array          The tables to drop.
  */
 function give_wpmu_drop_tables( $tables, $blog_id ) {
 
 	switch_to_blog( $blog_id );
-	$donors_db     = new Give_DB_Donors();
-	$donor_meta_db = new Give_DB_Donor_Meta();
+	$custom_tables = __give_get_tables();
 
-	if ( $donors_db->installed() ) {
-		$tables[] = $donors_db->table_name;
-		$tables[] = $donor_meta_db->table_name;
+	/* @var Give_DB $table */
+	foreach ( $custom_tables as $table ) {
+		if ( $table->installed() ) {
+			$tables[] = $table->table_name;
+		}
 	}
+
 	restore_current_blog();
 
 	return $tables;
@@ -243,7 +269,7 @@ function give_after_install() {
 			do_action( 'give_after_install', $give_options );
 		}
 
-		update_option( '_give_table_check', ( current_time( 'timestamp' ) + WEEK_IN_SECONDS ) );
+		update_option( '_give_table_check', ( current_time( 'timestamp' ) + WEEK_IN_SECONDS ), false );
 
 	}
 
@@ -302,13 +328,18 @@ function give_get_default_settings() {
 		'currency'                                    => 'USD',
 		'currency_position'                           => 'before',
 		'session_lifetime'                            => '604800',
-		'email_access'                                => 'disabled',
+		'email_access'                                => 'enabled',
+		'thousands_separator'                         => ',',
+		'decimal_separator'                           => '.',
 		'number_decimals'                             => 2,
+		'sequential-ordering_status'                  => 'enabled',
 
 		// Display options.
 		'css'                                         => 'enabled',
 		'floatlabels'                                 => 'disabled',
 		'welcome'                                     => 'enabled',
+		'company_field'                               => 'disabled',
+		'name_title_prefix'                           => 'disabled',
 		'forms_singular'                              => 'enabled',
 		'forms_archives'                              => 'enabled',
 		'forms_excerpt'                               => 'enabled',
@@ -318,11 +349,13 @@ function give_get_default_settings() {
 		'tags'                                        => 'disabled',
 		'terms'                                       => 'disabled',
 		'admin_notices'                               => 'enabled',
+		'cache'                                       => 'enabled',
 		'uninstall_on_delete'                         => 'disabled',
 		'the_content_filter'                          => 'enabled',
 		'scripts_footer'                              => 'disabled',
 		'agree_to_terms_label'                        => __( 'Agree to Terms?', 'give' ),
 		'agreement_text'                              => give_get_default_agreement_text(),
+		'babel_polyfill_script'                       => 'enabled',
 
 		// Paypal IPN verification.
 		'paypal_verification'                         => 'enabled',
@@ -343,6 +376,9 @@ function give_get_default_settings() {
 
 		// Default email receipt message.
 		'donation_receipt'                            => give_get_default_donation_receipt_email(),
+
+		'donor_default_user_role'                     => 'give_donor',
+
 	);
 
 	return $options;
@@ -378,11 +414,11 @@ function give_get_default_agreement_text() {
  *
  * @return void
  */
-function give_create_pages(){
+function give_create_pages() {
 
 	// Bailout if pages already created.
-	if( get_option( 'give_install_pages_created') ) {
-		return false;
+	if ( Give_Cache_Setting::get_option( 'give_install_pages_created' ) ) {
+		return;
 	}
 
 	$options = array();
@@ -441,10 +477,73 @@ function give_create_pages(){
 		$options['history_page'] = $history;
 	}
 
-	if( ! empty( $options ) ) {
-		update_option( 'give_settings', array_merge( give_get_settings(), $options ) );
+	if ( ! empty( $options ) ) {
+		update_option( 'give_settings', array_merge( give_get_settings(), $options ), false );
 	}
 
-	add_option( 'give_install_pages_created', 1, '', 'no' );
+	add_option( 'give_install_pages_created', 1, '', false );
 }
-add_action( 'admin_init', 'give_create_pages', -1 );
+
+// @TODO we can add this hook only when plugin activate instead of every admin page load.
+// @see known issue https://github.com/impress-org/give/issues/1848
+add_action( 'admin_init', 'give_create_pages', - 1 );
+
+
+/**
+ * Install tables on plugin update if missing
+ * Note: only for internal use
+ *
+ * @since 2.4.1
+ *
+ * @param string $old_version
+ */
+function give_install_tables_on_plugin_update( $old_version ) {
+	update_option( 'give_version_upgraded_from', $old_version, false );
+	__give_register_tables();
+}
+
+add_action( 'update_option_give_version', 'give_install_tables_on_plugin_update', 0, 2 );
+
+
+/**
+ * Get array of table class objects
+ *
+ * Note: only for internal purpose use
+ *
+ * @sice 2.3.1
+ *
+ */
+function __give_get_tables() {
+	$tables = array(
+		'donors_db'       => new Give_DB_Donors(),
+		'donor_meta_db'   => new Give_DB_Donor_Meta(),
+		'comment_db'      => new Give_DB_Comments(),
+		'comment_db_meta' => new Give_DB_Comment_Meta(),
+		'give_session'    => new Give_DB_Sessions(),
+		'log_db'          => new Give_DB_Logs(),
+		'logmeta_db'      => new Give_DB_Log_Meta(),
+		'formmeta_db'     => new Give_DB_Form_Meta(),
+		'sequential_db'   => new Give_DB_Sequential_Ordering(),
+		'donation_meta'   => new Give_DB_Payment_Meta(),
+	);
+
+	return $tables;
+}
+
+/**
+ * Register classes
+ * Note: only for internal purpose use
+ *
+ * @sice 2.3.1
+ *
+ */
+function __give_register_tables() {
+	$tables = __give_get_tables();
+
+	/* @var Give_DB $table */
+	foreach ( $tables  as $table ) {
+		if( ! $table->installed() ) {
+			$table->register_table();
+		}
+	}
+}

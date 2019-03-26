@@ -1,0 +1,49 @@
+/*!
+ * Give Frontend SCSS/CSS
+ *
+ * @description: The Main SCSS file for FRONTEND styles which is compiled and minified via Gulp taskrunner
+ * @package:     Give
+ * @subpackage:  SCSS/Frontend
+ * @copyright:   Copyright (c) 2016, GiveWP
+ * @license:     http://opensource.org/licenses/gpl-2.0.php GNU Public License
+*/
+@import '_variables';
+@import '_mixins';
+@import '../plugins/hint.min';
+@import '../plugins/float-labels';
+@import '../plugins/magnific-popup';
+@import 'fonts';
+@import 'receipt';
+@import 'float-labels';
+@import 'forms';
+@import 'alerts';
+@import 'layouts';
+@import 'progress-bar';
+@import 'tables';
+@import 'theme-compatibility';
+@import 'donation-history';
+@import 'modal';
+@import '_components.donor';
+@import '../plugins/give-form-api';
+
+// Wrapper increases specificity for defensive styling against themes.
+.give-wrap {
+	@import 'grid';
+	@import 'card';
+	@import 'page-numbers';
+}
+
+// Import placeholder style from gutenberg placeholder.
+#give-receipt{
+	@import '../../../../blocks/components/placeholder-animation/style';
+}
+
+.give-grid-ie-utility {
+	margin: 0 -12px;
+}
+
+@supports (display: grid) {
+	.give-grid-ie-utility {
+		margin: 0;
+	}
+}

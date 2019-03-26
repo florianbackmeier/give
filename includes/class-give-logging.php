@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_Logging
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -52,11 +52,8 @@ class Give_Logging {
 		/**
 		 * Setup properties
 		 */
-
-		require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-logs.php';
-		require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-logs-meta.php';
-		$this->log_db     = new Give_DB_Logs();
-		$this->logmeta_db = new Give_DB_Log_Meta();
+		$this->log_db     = Give()->log_db;
+		$this->logmeta_db = Give()->logmeta_db;
 
 		/**
 		 * Setup hooks.
@@ -71,11 +68,13 @@ class Give_Logging {
 		// Backward compatibility.
 		if ( ! give_has_upgrade_completed( 'v20_logs_upgrades' ) ) {
 			// Create the log post type
-			add_action( 'init', array( $this, 'register_post_type' ), 1 );
-
-			// Create types taxonomy and default types
-			add_action( 'init', array( $this, 'register_taxonomy' ), 1 );
+			add_action( 'init', array( $this, 'register_post_type' ), -2 );
 		}
+
+		// Create types taxonomy and default types
+		// @todo: remove this taxonomy, some addon use this taxonomy with there custom log post type for example: recurring
+		// Do not use this taxonomy with your log type because we will remove it in future releases.
+		add_action( 'init', array( $this, 'register_taxonomy' ), -2 );
 	}
 
 
@@ -140,6 +139,7 @@ class Give_Logging {
 			'sale',
 			'gateway_error',
 			'api_request',
+			'update',
 		);
 
 		return apply_filters( 'give_log_types', $terms );
@@ -557,6 +557,8 @@ class Give_Logging {
 					continue;
 				} elseif ( ! isset( $log_query[ $new_query_param ] ) ) {
 					continue;
+				} elseif( empty( $log_query[ $new_query_param ] ) ) {
+					continue;
 				}
 
 				switch ( $new_query_param ) {
@@ -588,7 +590,18 @@ class Give_Logging {
 						break;
 
 					default:
-						$log_query[ $old_query_param ] = $log_query[ $new_query_param ];
+						switch( $new_query_param ){
+							case 'log_parent':
+								$log_query['meta_query'][] = array(
+									'key' => '_give_log_payment_id',
+									'value' => $log_query[ $new_query_param ]
+								);
+
+								break;
+
+							default:
+								$log_query[ $old_query_param ] = $log_query[ $new_query_param ];
+						}
 				}
 			}
 		} else {

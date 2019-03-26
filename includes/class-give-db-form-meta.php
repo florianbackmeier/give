@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/DB Form Meta
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -54,8 +54,6 @@ class Give_DB_Form_Meta extends Give_DB_Meta {
 		$this->primary_key = 'meta_id';
 		$this->version     = '1.0';
 
-		$this->register_table();
-
 		parent::__construct();
 	}
 
@@ -75,36 +73,6 @@ class Give_DB_Form_Meta extends Give_DB_Meta {
 			'meta_value' => '%s',
 		);
 	}
-
-	/**
-	 * Create the table
-	 *
-	 * @access public
-	 * @since  2.0
-	 *
-	 * @return void
-	 */
-	public function create_table() {
-		global $wpdb;
-
-		$charset_collate = $wpdb->get_charset_collate();
-
-		$sql = "CREATE TABLE {$this->table_name} (
-			meta_id bigint(20) NOT NULL AUTO_INCREMENT,
-			form_id bigint(20) NOT NULL,
-			meta_key varchar(255) DEFAULT NULL,
-			meta_value longtext,
-			PRIMARY KEY  (meta_id),
-			KEY form_id (form_id),
-			KEY meta_key (meta_key)
-			) {$charset_collate};";
-
-		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-		dbDelta( $sql );
-
-		update_option( $this->table_name . '_db_version', $this->version );
-	}
-
 
 	/**
 	 * check if custom meta table enabled or not.

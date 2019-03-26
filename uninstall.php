@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Uninstall
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -73,21 +73,31 @@ if ( give_is_setting_enabled( give_get_option( 'uninstall_on_delete' ) ) ) {
 	Give()->roles->remove_caps();
 
 	// Delete the Roles.
-	$give_roles = array( 'give_manager', 'give_accountant', 'give_worker' );
+	$give_roles = array( 'give_manager', 'give_accountant', 'give_worker', 'give_donor' );
 	foreach ( $give_roles as $role ) {
 		remove_role( $role );
 	}
 
 	// Remove all database tables.
-	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'give_donors' );
-	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'give_donormeta' );
-	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'give_customers' );
-	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'give_customermeta' );
-	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'give_logs' );
-	$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'give_logmeta' );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_donors" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_donormeta" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_donationmeta" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_formmeta" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_logs" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_logmeta" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_comments" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_commentmeta" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_sequential_ordering" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_sessions" );
+
+	// Remove tables which are supported with backward compatibility.
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_customers" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_customermeta" );
+	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}give_paymentmeta" );
 
 	// Cleanup Cron Events.
 	wp_clear_scheduled_hook( 'give_daily_scheduled_events' );
+	wp_clear_scheduled_hook( 'give_weekly_scheduled_events' );
 	wp_clear_scheduled_hook( 'give_daily_cron' );
 	wp_clear_scheduled_hook( 'give_weekly_cron' );
 

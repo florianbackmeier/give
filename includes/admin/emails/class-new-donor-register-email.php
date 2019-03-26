@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -33,8 +33,8 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 		public function init() {
 			$this->load( array(
 				'id'                    => 'new-donor-register',
-				'label'                 => __( 'New Donor Register', 'give' ),
-				'description'           => __( 'New Donor Register Notification will be sent to recipient(s) when new donor registered.', 'give' ),
+				'label'                 => __( 'New User Registration', 'give' ),
+				'description'           => __( 'Sent to designated recipient(s) when a new user registers on the site via a donation form.', 'give' ),
 				'has_recipient_field'   => true,
 				'notification_status'   => 'enabled',
 				'has_preview_header'    => true,
@@ -45,7 +45,8 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 					esc_attr__( '[%s] New User Registration', 'give' ),
 					get_bloginfo( 'name' )
 				),
-				'default_email_massage' => $this->get_default_email_message(),
+				'default_email_message' => $this->get_default_email_message(),
+				'default_email_header'  => __( 'New User Registration', 'give' ),
 			) );
 
 			// Setup action hook.
@@ -75,7 +76,7 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 		function get_default_email_message() {
 			$message = esc_attr__( 'New user registration on your site {sitename}:', 'give' ) . "\r\n\r\n";
 			$message .= esc_attr__( 'Username: {username}', 'give' ) . "\r\n\r\n";
-			$message .= esc_attr__( 'E-mail: {user_email}', 'give' ) . "\r\n";
+			$message .= esc_attr__( 'Email: {user_email}', 'give' ) . "\r\n";
 
 			/**
 			 * Filter the default email message
@@ -89,7 +90,6 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 			);
 		}
 
-
 		/**
 		 * Send new donor register notifications.
 		 *
@@ -102,7 +102,8 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 		 * @return string
 		 */
 		public function setup_email_notification( $user_id, $user_data ) {
-			$this->recipient_email = $user_data['user_email'];
+			$this->setup_email_data();
+
 			$this->send_email_notification( array(
 				'user_id' => $user_id,
 			) );
@@ -130,7 +131,7 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 
 			// Get payments.
 			$donors  = new Give_API();
-			$donors  = give_check_variable( $donors->get_customers(), 'empty', array(), 'donors' );
+			$donors  = give_check_variable( $donors->get_donors(), 'empty', array(), 'donors' );
 			$options = array();
 
 			// Default option.
@@ -144,55 +145,70 @@ if ( ! class_exists( 'Give_New_Donor_Register_Email' ) ) :
 					if ( ! $donor['info']['user_id'] ) {
 						continue;
 					}
-					$options[ $donor['info']['user_id'] ] = esc_html( '#' . $donor['info']['customer_id'] . ' - ' . $donor['info']['email'] );
+					$options[ $donor['info']['user_id'] ] = esc_html( '#' . $donor['info']['donor_id'] . ' - ' . $donor['info']['email'] );
 				}
 			}
 
-			// Start constructing HTML output.
-			$email_preview_header = '<div style="margin:0;padding:10px 0;width:100%;background-color:#FFF;border-bottom:1px solid #eee; text-align:center;">';
+			$request_url_data = wp_parse_url( $_SERVER['REQUEST_URI'] );
+			$query            = $request_url_data['query'];
 
-			// Inline JS function for switching donations.
-			$request_url = $_SERVER['REQUEST_URI'];
+			// Remove user id query param if set from request url.
+			$query = remove_query_arg( array( 'user_id' ), $query );
 
-			// Remove payment id query param if set from request url.
-			if ( $user_id ) {
-				$request_url_data = wp_parse_url( $_SERVER['REQUEST_URI'] );
-				$query            = $request_url_data['query'];
-				$query            = str_replace( "&user_id={$user_id}", '', $query );
+			$request_url = home_url( '/?' . str_replace( '', '', $query ) );
+			?>
+			<script type="text/javascript">
+				function change_preview() {
+					var transactions = document.getElementById("give_preview_email_user_id");
+					var selected_trans = transactions.options[transactions.selectedIndex];
+					if (selected_trans) {
+						var url_string = "<?php echo $request_url; ?>&user_id=" + selected_trans.value;
+						window.location = url_string;
+					}
+				}
+			</script>
 
-				$request_url = home_url( '/?' . str_replace( '', '', $query ) );
-			}
+			<style type="text/css">
+				.give_preview_email_user_id_main {
+					margin: 0;
+					padding: 10px 0;
+					width: 100%;
+					background-color: #FFF;
+					border-bottom: 1px solid #eee;
+					text-align: center;
+				}
 
-			$email_preview_header .= '<script>
-				 function change_preview(){
-				  var transactions = document.getElementById("give_preview_email_user_id");
-			        var selected_trans = transactions.options[transactions.selectedIndex];
-				        if (selected_trans){
-				            var url_string = "' . $request_url . '&user_id=" + selected_trans.value;
-				                window.location = url_string;
-				        }
-				    }
-			    </script>';
+				.give_preview_email_user_id_label {
+					font-size: 12px;
+					color: #333;
+					margin: 0 4px 0 0;
+				}
+			</style>
 
-			$email_preview_header .= '<label for="give_preview_email_user_id" style="font-size:12px;color:#333;margin:0 4px 0 0;">' . esc_html__( 'Preview email with a donor:', 'give' ) . '</label>';
+			<!-- Start constructing HTML output.-->
+			<div class="give_preview_email_user_id_main">
 
-			// The select field with 100 latest transactions
-			$email_preview_header .= Give()->html->select( array(
-				'name'             => 'preview_email_user_id',
-				'selected'         => $user_id,
-				'id'               => 'give_preview_email_user_id',
-				'class'            => 'give-preview-email-donor-id',
-				'options'          => $options,
-				'chosen'           => false,
-				'select_atts'      => 'onchange="change_preview()"',
-				'show_option_all'  => false,
-				'show_option_none' => false,
-			) );
+				<label for="give_preview_email_user_id" class="give_preview_email_user_id_label">
+					<?php echo esc_html__( 'Preview email with a donor:', 'give' ); ?>
+				</label>
 
-			// Closing tag
-			$email_preview_header .= '</div>';
-
-			echo $email_preview_header;
+				<?php
+				// The select field with 100 latest transactions
+				echo Give()->html->select( array(
+					'name'             => 'preview_email_user_id',
+					'selected'         => $user_id,
+					'id'               => 'give_preview_email_user_id',
+					'class'            => 'give-preview-email-donor-id',
+					'options'          => $options,
+					'chosen'           => false,
+					'select_atts'      => 'onchange="change_preview()"',
+					'show_option_all'  => false,
+					'show_option_none' => false,
+				) );
+				?>
+				<!-- Closing tag-->
+			</div>
+			<?php
 		}
 	}
 

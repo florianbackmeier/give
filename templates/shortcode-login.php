@@ -2,9 +2,19 @@
 /**
  * This template is used to display the login form with [give_login]
  */
+
+$get_data = give_clean( filter_input_array( INPUT_GET ) );
+
 if ( ! is_user_logged_in() ) {
 
-	// Show any error messages after form submission
+	if ( ! empty( $get_data['donation_id'] ) ) {
+		$give_login_redirect = add_query_arg(
+			'donation_id', $get_data['donation_id'],
+			give_get_history_page_uri()
+		);
+	}
+
+	// Show any error messages after form submission.
 	Give()->notices->render_frontend_notices( 0 ); ?>
 	<form id="give-login-form" class="give-form" action="" method="post">
 		<fieldset>
@@ -33,11 +43,13 @@ if ( ! is_user_logged_in() ) {
 				<input type="hidden" name="give_login_redirect" value="<?php echo esc_url( $give_login_redirect ); ?>" />
 				<input type="hidden" name="give_login_nonce" value="<?php echo wp_create_nonce( 'give-login-nonce' ); ?>" />
 				<input type="hidden" name="give_action" value="user_login" />
-				<input id="give_login_submit" type="submit" class="give_submit" value="<?php esc_attr_e( 'Log In', 'give' ); ?>" />
+				<input id="give_login_submit" type="submit" class="give_submit" value="<?php esc_html_e( 'Log In', 'give' ); ?>" />
 			</div>
 
 			<div class="give-lost-password give-login">
-				<a href="<?php echo wp_lostpassword_url(); ?>"><?php esc_html_e( 'Reset Password', 'give' ); ?></a>
+				<a href="<?php echo esc_url( wp_lostpassword_url() ); ?>">
+					<?php esc_html_e( 'Reset Password', 'give' ); ?>
+				</a>
 			</div>
 			<?php
 			/**
@@ -51,8 +63,22 @@ if ( ! is_user_logged_in() ) {
 			?>
 		</fieldset>
 	</form>
-<?php } elseif( isset( $_GET['give-login-success'] ) && $_GET['give-login-success'] == true ) { ?>
-	<?php Give()->notices->print_frontend_notice( apply_filters('give_successful_login_message', esc_html__( 'Login successful. Welcome!', 'give' )), true, 'success' ); ?>
-<?php } else { ?>
-	<?php Give()->notices->print_frontend_notice( apply_filters('give_already_logged_in_message', sprintf( __( 'You are already logged in to the site. <a href="%s">Click here</a> to logout.', 'give' ), esc_url( $give_logout_redirect ) ) ), true, 'warning' ); ?>
-<?php } ?>
+	<?php
+} elseif ( isset( $get_data['give-login-success'] ) && true === (bool) $get_data['give-login-success'] ) {
+
+	Give()->notices->print_frontend_notice(
+		apply_filters( 'give_successful_login_message', esc_html__( 'Login successful. Welcome!', 'give' ) ),
+		true,
+		'success'
+	);
+} else {
+	Give()->notices->print_frontend_notice(
+		apply_filters( 'give_already_logged_in_message', sprintf(
+			/* translators: %s Redirect URL. */
+			__( 'You are already logged in to the site. <a href="%s">Click here</a> to log out.', 'give' ),
+			esc_url(  wp_logout_url() )
+		) ),
+		true,
+		'warning'
+	);
+}

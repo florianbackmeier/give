@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_Roles
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -36,6 +36,8 @@ class Give_Roles {
 	 */
 	public function __construct() {
 		add_filter( 'give_map_meta_cap', array( $this, 'meta_caps' ), 10, 4 );
+		add_filter( 'woocommerce_disable_admin_bar', array( $this, 'manage_admin_dashboard' ), 10, 1 );
+		add_filter( 'woocommerce_prevent_admin_access', array( $this, 'manage_admin_dashboard' ), 10 );
 	}
 
 	/**
@@ -49,49 +51,53 @@ class Give_Roles {
 	 * @return void
 	 */
 	public function add_roles() {
-		add_role( 'give_manager', esc_html__( 'Give Manager', 'give' ), array(
+		add_role( 'give_manager', __( 'Give Manager', 'give' ), array(
 			'read'                   => true,
 			'edit_posts'             => true,
 			'delete_posts'           => true,
 			'unfiltered_html'        => true,
 			'upload_files'           => true,
-			'export'                 => true,
-			'import'                 => true,
-			'delete_others_pages'    => true,
-			'delete_others_posts'    => true,
+			'export'                 => false,
+			'import'                 => false,
+			'delete_others_pages'    => false,
+			'delete_others_posts'    => false,
 			'delete_pages'           => true,
 			'delete_private_pages'   => true,
 			'delete_private_posts'   => true,
 			'delete_published_pages' => true,
 			'delete_published_posts' => true,
-			'edit_others_pages'      => true,
-			'edit_others_posts'      => true,
+			'edit_others_pages'      => false,
+			'edit_others_posts'      => false,
 			'edit_pages'             => true,
 			'edit_private_pages'     => true,
 			'edit_private_posts'     => true,
 			'edit_published_pages'   => true,
 			'edit_published_posts'   => true,
-			'manage_categories'      => true,
+			'manage_categories'      => false,
 			'manage_links'           => true,
 			'moderate_comments'      => true,
 			'publish_pages'          => true,
 			'publish_posts'          => true,
 			'read_private_pages'     => true,
-			'read_private_posts'     => true
+			'read_private_posts'     => true,
 		) );
 
-		add_role( 'give_accountant', esc_html__( 'Give Accountant', 'give' ), array(
+		add_role( 'give_accountant', __( 'Give Accountant', 'give' ), array(
 			'read'         => true,
 			'edit_posts'   => false,
-			'delete_posts' => false
+			'delete_posts' => false,
 		) );
 
-		add_role( 'give_worker', esc_html__( 'Give Worker', 'give' ), array(
+		add_role( 'give_worker', __( 'Give Worker', 'give' ), array(
 			'read'         => true,
 			'edit_posts'   => true,
-            'edit_pages'   => true,
+			'edit_pages'   => true,
 			'upload_files' => true,
-			'delete_posts' => false
+			'delete_posts' => false,
+		) );
+
+		add_role( 'give_donor', __( 'Give Donor', 'give' ), array(
+			'read' => true,
 		) );
 
 	}
@@ -122,11 +128,13 @@ class Give_Roles {
 			$wp_roles->add_cap( 'give_manager', 'view_give_sensitive_data' );
 			$wp_roles->add_cap( 'give_manager', 'export_give_reports' );
 			$wp_roles->add_cap( 'give_manager', 'manage_give_settings' );
+			$wp_roles->add_cap( 'give_manager', 'view_give_payments' );
 
 			$wp_roles->add_cap( 'administrator', 'view_give_reports' );
 			$wp_roles->add_cap( 'administrator', 'view_give_sensitive_data' );
 			$wp_roles->add_cap( 'administrator', 'export_give_reports' );
 			$wp_roles->add_cap( 'administrator', 'manage_give_settings' );
+			$wp_roles->add_cap( 'administrator', 'view_give_payments' );
 
 			// Add the main post type capabilities.
 			$capabilities = $this->get_core_caps();
@@ -134,15 +142,29 @@ class Give_Roles {
 				foreach ( $cap_group as $cap ) {
 					$wp_roles->add_cap( 'administrator', $cap );
 					$wp_roles->add_cap( 'give_manager', $cap );
-					$wp_roles->add_cap( 'give_worker', $cap );
 				}
 			}
 
+			// Add Capabilities to Give Workers User Role.
+			$wp_roles->add_cap( 'give_worker', 'edit_give_payments' );
+			$wp_roles->add_cap( 'give_worker', 'delete_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'delete_others_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'delete_private_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'delete_published_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'edit_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'edit_others_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'edit_private_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'edit_published_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'publish_give_forms' );
+			$wp_roles->add_cap( 'give_worker', 'read_private_give_forms' );
+
+			// Add Capabilities to Give Accountant User Role.
 			$wp_roles->add_cap( 'give_accountant', 'edit_give_forms' );
 			$wp_roles->add_cap( 'give_accountant', 'read_private_give_forms' );
 			$wp_roles->add_cap( 'give_accountant', 'view_give_reports' );
 			$wp_roles->add_cap( 'give_accountant', 'export_give_reports' );
 			$wp_roles->add_cap( 'give_accountant', 'edit_give_payments' );
+			$wp_roles->add_cap( 'give_accountant', 'view_give_payments' );
 
 		}
 	}
@@ -269,6 +291,7 @@ class Give_Roles {
 			$wp_roles->remove_cap( 'administrator', 'view_give_sensitive_data' );
 			$wp_roles->remove_cap( 'administrator', 'export_give_reports' );
 			$wp_roles->remove_cap( 'administrator', 'manage_give_settings' );
+			$wp_roles->remove_cap( 'administrator', 'view_give_payments' );
 
 			// Remove the Main Post Type Capabilities.
 			$capabilities = $this->get_core_caps();
@@ -277,17 +300,59 @@ class Give_Roles {
 				foreach ( $cap_group as $cap ) {
 					$wp_roles->remove_cap( 'give_manager', $cap );
 					$wp_roles->remove_cap( 'administrator', $cap );
-					$wp_roles->remove_cap( 'give_worker', $cap );
+
 				}
 			}
 
-			/** Give Accountant Capabilities */
+			// Remove capabilities from the Give Worker role.
+			$wp_roles->remove_cap( 'give_worker', 'edit_give_payments' );
+			$wp_roles->remove_cap( 'give_worker', 'delete_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'delete_others_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'delete_private_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'delete_published_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'edit_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'edit_others_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'edit_private_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'edit_published_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'publish_give_forms' );
+			$wp_roles->remove_cap( 'give_worker', 'read_private_give_forms' );
+
+			// Remove Capabilities from Give Accountant User Role.
 			$wp_roles->remove_cap( 'give_accountant', 'edit_give_forms' );
 			$wp_roles->remove_cap( 'give_accountant', 'read_private_give_forms' );
 			$wp_roles->remove_cap( 'give_accountant', 'view_give_reports' );
 			$wp_roles->remove_cap( 'give_accountant', 'export_give_reports' );
+			$wp_roles->remove_cap( 'give_accountant', 'edit_give_payments' );
+			$wp_roles->remove_cap( 'give_accountant', 'view_give_payments' );
 
 		}
 	}
 
+	/**
+	 * Allow admin dashboard to User with Give Accountant Role.
+	 *
+	 * Note: WooCommerce doesn't allow the user to access the WP dashboard who holds "Give Accountant" role.
+	 *
+	 * @since 1.8.14
+	 * @updated 1.8.18 - Fixed Give conflicting by not returning $show_admin_bar https://github.com/impress-org/give/issues/2539
+	 *
+	 * @param bool
+	 *
+	 * @return bool
+	 */
+	public function manage_admin_dashboard($show_admin_bar) {
+
+		// Get the current logged user.
+		$current_user = wp_get_current_user();
+
+		// If user with "Give Accountant" user role is logged-in .
+		if ( 0 !== $current_user->ID && in_array( 'give_accountant', (array) $current_user->roles, true ) ) {
+
+			// Return false, means no prevention.
+			return false;
+		}
+
+		return $show_admin_bar;
+
+	}
 }

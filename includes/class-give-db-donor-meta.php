@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/DB Donor Meta
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.6
  */
@@ -24,6 +24,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Give_DB_Donor_Meta extends Give_DB_Meta {
 
 	/**
+	 * Meta supports.
+	 *
+	 * @since  2.0
+	 * @access protected
+	 * @var array
+	 */
+	protected $supports = array();
+
+	/**
 	 * Meta type
 	 *
 	 * @since  2.0
@@ -33,14 +42,6 @@ class Give_DB_Donor_Meta extends Give_DB_Meta {
 	 */
 	public $meta_type = 'donor';
 
-	/**
-	 * Meta supports.
-	 *
-	 * @since  2.0
-	 * @access protected
-	 * @var array
-	 */
-	protected $supports = array();
 
 	/**
 	 * Give_DB_Donor_Meta constructor.
@@ -59,7 +60,6 @@ class Give_DB_Donor_Meta extends Give_DB_Meta {
 		parent::__construct();
 
 		$this->bc_200_params();
-		$this->register_table();
 	}
 
 	/**
@@ -77,33 +77,6 @@ class Give_DB_Donor_Meta extends Give_DB_Meta {
 			'meta_key'    => '%s',
 			'meta_value'  => '%s',
 		);
-	}
-
-	/**
-	 * Create the table
-	 *
-	 * @access public
-	 * @since  1.6
-	 *
-	 * @return void
-	 */
-	public function create_table() {
-
-		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-
-		$sql = "CREATE TABLE {$this->table_name} (
-			meta_id bigint(20) NOT NULL AUTO_INCREMENT,
-			donor_id bigint(20) NOT NULL,
-			meta_key varchar(255) DEFAULT NULL,
-			meta_value longtext,
-			PRIMARY KEY  (meta_id),
-			KEY donor_id (donor_id),
-			KEY meta_key (meta_key)
-			) CHARACTER SET utf8 COLLATE utf8_general_ci;";
-
-		dbDelta( $sql );
-
-		update_option( $this->table_name . '_db_version', $this->version );
 	}
 
 	/**

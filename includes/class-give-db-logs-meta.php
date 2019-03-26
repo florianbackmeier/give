@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/DB Log Meta
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -53,8 +53,6 @@ class Give_DB_Log_Meta extends Give_DB_Meta {
 		$wpdb->logmeta     = $this->table_name = $wpdb->prefix . 'give_logmeta';
 		$this->primary_key = 'meta_id';
 		$this->version     = '1.0';
-
-		$this->register_table();
 
 		parent::__construct();
 	}
@@ -105,34 +103,6 @@ class Give_DB_Log_Meta extends Give_DB_Meta {
 	}
 
 	/**
-	 * Create the table
-	 *
-	 * @access public
-	 * @since  2.0
-	 *
-	 * @return void
-	 */
-	public function create_table() {
-		global $wpdb;
-		$charset_collate = $wpdb->get_charset_collate();
-
-		$sql = "CREATE TABLE {$wpdb->logmeta} (
-			meta_id bigint(20) NOT NULL AUTO_INCREMENT,
-			log_id bigint(20) NOT NULL,
-			meta_key varchar(255) DEFAULT NULL,
-			meta_value longtext,
-			PRIMARY KEY  (meta_id),
-			KEY log_id (log_id),
-			KEY meta_key (meta_key)
-			) {$charset_collate};";
-
-		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-		dbDelta( $sql );
-
-		update_option( $this->table_name . '_db_version', $this->version );
-	}
-
-	/**
 	 * Check if current id is valid
 	 *
 	 * @since  2.0
@@ -144,16 +114,5 @@ class Give_DB_Log_Meta extends Give_DB_Meta {
 	 */
 	protected function is_valid_post_type( $ID ) {
 		return $ID && true;
-	}
-
-	/**
-	 * check if custom meta table enabled or not.
-	 *
-	 * @since  2.0
-	 * @access protected
-	 * @return bool
-	 */
-	protected function is_custom_meta_table_active() {
-		return give_has_upgrade_completed( 'v20_logs_upgrades' );
 	}
 }

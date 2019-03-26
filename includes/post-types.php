@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -25,6 +25,19 @@ function give_setup_post_types() {
 	// Give Forms single post and archive options.
 	$give_forms_singular = give_is_setting_enabled( give_get_option( 'forms_singular' ) );
 	$give_forms_archives = give_is_setting_enabled( give_get_option( 'forms_archives' ) );
+
+	// Enable/Disable give_forms links if form is saving.
+	if ( Give_Admin_Settings::is_saving_settings() ) {
+		if ( isset( $_POST['forms_singular'] ) ) {
+			$give_forms_singular = give_is_setting_enabled( give_clean( $_POST['forms_singular'] ) );
+			flush_rewrite_rules();
+		}
+
+		if ( isset( $_POST['forms_archives'] ) ) {
+			$give_forms_archives = give_is_setting_enabled( give_clean( $_POST['forms_archives'] ) );
+			flush_rewrite_rules();
+		}
+	}
 
 	$give_forms_slug = defined( 'GIVE_SLUG' ) ? GIVE_SLUG : 'donations';
 	// Support for old 'GIVE_FORMS_SLUG' constant
@@ -79,6 +92,7 @@ function give_setup_post_types() {
 		'public'             => $give_forms_singular,
 		'show_ui'            => true,
 		'show_in_menu'       => true,
+		'show_in_rest' 		 => true,
 		'query_var'          => true,
 		'rewrite'            => $give_forms_rewrite,
 		'map_meta_cap'       => true,
@@ -170,12 +184,6 @@ function give_setup_taxonomies() {
 		)
 	);
 
-	// Does the user want categories?
-	if ( give_is_setting_enabled( give_get_option( 'categories', 'disabled' ) ) ) {
-		register_taxonomy( 'give_forms_category', array( 'give_forms' ), $category_args );
-		register_taxonomy_for_object_type( 'give_forms_category', 'give_forms' );
-	}
-
 	/** Tags */
 	$tag_labels = array(
 		'name'                  => _x( 'Form Tags', 'taxonomy general name', 'give' ),
@@ -207,11 +215,34 @@ function give_setup_taxonomies() {
 		)
 	);
 
-	if ( give_is_setting_enabled( give_get_option( 'tags', 'disabled' ) ) ) {
+	// Does the user want category?
+	$enable_category = give_is_setting_enabled( give_get_option( 'categories', 'disabled' ) );
+
+	// Does the user want tag?
+	$enable_tag = give_is_setting_enabled( give_get_option( 'tags', 'disabled' ) );
+
+	// Enable/Disable category and tag if form is saving.
+	if ( Give_Admin_Settings::is_saving_settings() ) {
+		if ( isset( $_POST['categories'] ) ) {
+			$enable_category = give_is_setting_enabled( give_clean( $_POST['categories'] ) );
+			flush_rewrite_rules();
+		}
+
+		if ( isset( $_POST['tags'] ) ) {
+			$enable_tag = give_is_setting_enabled( give_clean( $_POST['tags'] ) );
+			flush_rewrite_rules();
+		}
+	}
+
+	if ( $enable_category ) {
+		register_taxonomy( 'give_forms_category', array( 'give_forms' ), $category_args );
+		register_taxonomy_for_object_type( 'give_forms_category', 'give_forms' );
+	}
+
+	if ( $enable_tag ) {
 		register_taxonomy( 'give_forms_tag', array( 'give_forms' ), $tag_args );
 		register_taxonomy_for_object_type( 'give_forms_tag', 'give_forms' );
 	}
-
 }
 
 add_action( 'init', 'give_setup_taxonomies', 0 );
@@ -442,3 +473,33 @@ function give_widgets_init() {
 }
 
 add_action( 'widgets_init', 'give_widgets_init', 999 );
+
+
+/**
+ * Remove "Quick Edit" for the give_forms CPT.
+ *
+ * @since 2.3.0
+ *
+ * @param array $actions
+ * @param null  $post
+ *
+ * @return array
+ */
+function give_forms_disable_quick_edit( $actions = array(), $post = null ) {
+
+	// Abort if the post type is not "give_forms".
+	if ( ! is_post_type_archive( 'give_forms' ) ) {
+		return $actions;
+	}
+
+	// Remove the Quick Edit link.
+	if ( isset( $actions['inline hide-if-no-js'] ) ) {
+		unset( $actions['inline hide-if-no-js'] );
+	}
+
+	// Return the set of links without Quick Edit.
+	return $actions;
+
+}
+
+add_filter( 'post_row_actions', 'give_forms_disable_quick_edit', 10, 2 );

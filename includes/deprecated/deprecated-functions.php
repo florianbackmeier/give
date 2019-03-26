@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Deprecated
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.4.1
  */
@@ -23,6 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function _give_load_deprecated_global_params( $give_object ) {
 	$GLOBALS['give_logs'] = Give()->logs;
+	$GLOBALS['give_cron'] = Give_Cron::get_instance();
 }
 
 add_action( 'give_init', '_give_load_deprecated_global_params' );
@@ -615,14 +616,14 @@ function give_get_purchase_summary( $purchase_data, $email = true ) {
 
 	_give_deprecated_function( __FUNCTION__, '1.8.12', 'give_payment_gateway_donation_summary', $backtrace );
 
-	give_payment_gateway_donation_summary($purchase_data, $email);
+	give_payment_gateway_donation_summary( $purchase_data, $email );
 
 }
 
 /**
  * Retrieves the emails for which admin notifications are sent to (these can be changed in the Give Settings).
  *
- * @since 1.0
+ * @since      1.0
  * @deprecated 2.0
  *
  * @return mixed
@@ -640,7 +641,7 @@ function give_get_admin_notice_emails() {
 /**
  * Checks whether admin donation notices are disabled
  *
- * @since 1.0
+ * @since      1.0
  * @deprecated 2.0
  *
  * @param int $payment_id
@@ -650,7 +651,492 @@ function give_get_admin_notice_emails() {
 function give_admin_notices_disabled( $payment_id = 0 ) {
 	return apply_filters(
 		'give_admin_notices_disabled',
-		! give_is_setting_enabled( Give_Email_Notification::get_instance('new-donation' )->get_notification_status() ),
+		! give_is_setting_enabled( Give_Email_Notification::get_instance( 'new-donation' )->get_notification_status() ),
 		$payment_id
 	);
+}
+
+
+/** Generate Item Title for Payment Gateway
+ *
+ * @param array $payment_data Payment Data.
+ *
+ * @since 1.8.14
+ *
+ * @return string
+ */
+function give_build_paypal_item_title( $payment_data ) {
+
+	$backtrace = debug_backtrace();
+
+	_give_deprecated_function( __FUNCTION__, '1.8.14', 'give_payment_gateway_item_title', $backtrace );
+
+	return give_payment_gateway_item_title( $payment_data );
+
+}
+
+
+/**
+ * Set the number of decimal places per currency
+ *
+ * @since      1.0
+ * @since      1.6 $decimals parameter removed from function params
+ * @deprecated 1.8.15
+ * *
+ * @return int $decimals
+ */
+function give_currency_decimal_filter() {
+	// Set default number of decimals.
+	$decimals = give_get_price_decimals();
+
+	// Get number of decimals with backward compatibility ( version < 1.6 )
+	if ( 1 <= func_num_args() ) {
+		$decimals = ( false === func_get_arg( 0 ) ? $decimals : absint( func_get_arg( 0 ) ) );
+	}
+
+	$currency = give_get_currency();
+
+	switch ( $currency ) {
+		// case 'RIAL' :
+		case 'JPY' :
+		case 'KRW' :
+			// case 'TWD' :
+			// case 'HUF' :
+
+			$decimals = 0;
+			break;
+	}
+
+	return apply_filters( 'give_currency_decimal_count', $decimals, $currency );
+}
+
+
+/**
+ * Get field custom attributes as string.
+ *
+ * @since      1.8
+ * @deprecated 1.8.17
+ *
+ * @param $field
+ *
+ * @return string
+ */
+function give_get_custom_attributes( $field ) {
+	// Custom attribute handling
+	$custom_attributes = '';
+
+	if ( ! empty( $field['attributes'] ) && is_array( $field['attributes'] ) ) {
+		$custom_attributes = give_get_attribute_str( $field['attributes'] );
+	}
+
+	return $custom_attributes;
+}
+
+
+/**
+ * Get Payment Amount
+ *
+ * Get the fully formatted payment amount which is sent through give_currency_filter()
+ * and give_format_amount() to format the amount correctly.
+ *
+ * @param int $payment_id Payment ID.
+ *
+ * @since      1.0
+ * @deprecated 1.8.17
+ *
+ * @return string $amount Fully formatted payment amount.
+ */
+function give_payment_amount( $payment_id ) {
+	return give_donation_amount( $payment_id );
+}
+
+/**
+ * Get Payment Amount
+ *
+ * Get the fully formatted payment amount which is sent through give_currency_filter()
+ * and give_format_amount() to format the amount correctly.
+ *
+ * @param int $payment_id Payment ID.
+ *
+ * @since      1.0
+ * @deprecated 1.8.17
+ *
+ * @return string $amount Fully formatted payment amount.
+ */
+function give_get_payment_amount( $payment_id ) {
+	return give_donation_amount( $payment_id );
+}
+
+/**
+ * Decrease form earnings.
+ *
+ * @deprecated 1.8.17
+ *
+ * @param int $form_id
+ * @param     $amount
+ *
+ * @return bool|int
+ */
+function give_decrease_earnings( $form_id = 0, $amount ) {
+	return give_decrease_form_earnings( $form_id, $amount );
+}
+
+/**
+ * Retrieve the donation ID based on the key
+ *
+ * @param string $key the key to search for.
+ *
+ * @since      1.0
+ * @deprecated 1.8.18
+ *
+ * @return int $purchase Donation ID.
+ */
+function give_get_purchase_id_by_key( $key ) {
+	return give_get_donation_id_by_key( $key );
+}
+
+/**
+ * Retrieve Donation Form Title with/without Donation Levels.
+ *
+ * @param array  $meta       List of Donation Meta.
+ * @param bool   $only_level True/False, whether to show only level or not.
+ * @param string $separator  Display separator symbol to separate the form title and donation level.
+ *
+ * @since 2.0
+ *
+ * @return string
+ */
+function give_get_payment_form_title( $meta, $only_level = false, $separator = '' ) {
+
+	_give_deprecated_function(
+		__FUNCTION__,
+		'2.0',
+		'give_get_donation_form_title'
+	);
+
+	$donation = '';
+	if ( is_array( $meta ) && ! empty( $meta['key'] ) ) {
+		$donation = give_get_payment_by( 'key', $meta['key'] );
+	}
+
+	$args = array(
+		'only_level' => $only_level,
+		'separator'  => $separator,
+	);
+
+	return give_get_donation_form_title( $donation, $args );
+}
+
+/**
+ * This function is used to delete donor for bulk actions on donor listing page.
+ *
+ * @param array $args List of arguments to delete donor.
+ *
+ * @since 2.2
+ */
+function give_delete_donor( $args ) {
+
+	_give_deprecated_function(
+		__FUNCTION__,
+		'2.2',
+		'give_process_donor_deletion'
+	);
+
+	give_process_donor_deletion( $args );
+}
+
+
+/**
+ * Retrieve all donor comment attached to a donation
+ *
+ * Note: currently donor can only add one comment per donation
+ *
+ * @param int    $donor_id The donor ID to retrieve comment for.
+ * @param array  $comment_args
+ * @param string $search   Search for comment that contain a search term.
+ *
+ * @since 2.2.0
+ * @deprecated 2.3.0
+ *
+ * @return array
+ */
+function give_get_donor_donation_comments( $donor_id, $comment_args = array(), $search = '' ) {
+	_give_deprecated_function(
+		__FUNCTION__,
+		'2.3.0',
+		'Give()->comment->db'
+	);
+
+	$comments = Give_Comment::get(
+		$donor_id,
+		'payment',
+		$comment_args,
+		$search
+	);
+
+	return ( ! empty( $comments ) ? $comments : array() );
+}
+
+/**
+ * Converts a PHP date format for use in JavaScript.
+ *
+ * @since 2.2.0
+ * @deprecated 2.3.0
+ *
+ * @param string $php_format The PHP date format.
+ *
+ * @return string The JS date format.
+ */
+function give_convert_php_date_format_to_js( $php_format ) {
+
+	$backtrace = debug_backtrace();
+
+	_give_deprecated_function( __FUNCTION__, '2.3.0', null, $backtrace );
+
+	$js_format = $php_format;
+
+	switch ( $php_format ) {
+		case 'F j, Y':
+			$js_format = 'MM dd, yy';
+			break;
+		case 'Y-m-d':
+			$js_format = 'yy-mm-dd';
+			break;
+		case 'm/d/Y':
+			$js_format = 'mm/dd/yy';
+			break;
+		case 'd/m/Y':
+			$js_format = 'dd/mm/yy';
+			break;
+	}
+
+	/**
+	 * Filters the date format for use in JavaScript.
+	 *
+	 * @since 2.2.0
+	 *
+	 * @param string $js_format  The JS date format.
+	 * @param string $php_format The PHP date format.
+	 */
+	$js_format = apply_filters( 'give_js_date_format', $js_format, $php_format );
+
+	return $js_format;
+}
+
+/**
+ * Get localized date format for use in JavaScript.
+ *
+ * @since 2.2.0
+ * @deprecated 2.3.0
+ *
+ * @return string.
+ */
+function give_get_localized_date_format_to_js() {
+	$backtrace = debug_backtrace();
+
+	_give_deprecated_function( __FUNCTION__, '2.3.0', null, $backtrace );
+
+	return give_convert_php_date_format_to_js( get_option( 'date_format' ) );
+}
+
+/**
+ * Get donor latest comment
+ *
+ * @since 2.2.0
+ * @deprecated 2.3.0
+ *
+ * @param int $donor_id
+ * @param int $form_id
+ *
+ * @return WP_Comment/stdClass/array
+ */
+function give_get_donor_latest_comment( $donor_id, $form_id = 0 ) {
+	global $wpdb;
+
+	_give_deprecated_function(
+		__FUNCTION__,
+		'2.3.0',
+		'Give()->comment->db'
+	);
+
+	// Backward compatibility.
+	if ( ! give_has_upgrade_completed( 'v230_move_donor_note' ) ) {
+
+		$comment_args = array(
+			'post_id'    => 0,
+			'orderby'    => 'comment_ID',
+			'order'      => 'DESC',
+			'number'     => 1,
+			'meta_query' => array(
+				'related' => 'AND',
+				array(
+					'key'   => '_give_donor_id',
+					'value' => $donor_id
+				),
+				array(
+					'key'   => '_give_anonymous_donation',
+					'value' => 0
+				)
+			)
+		);
+
+		// Get donor donation comment for specific form.
+		if ( $form_id ) {
+			$comment_args['parent'] = $form_id;
+		}
+
+		$comment = current( give_get_donor_donation_comments( $donor_id, $comment_args ) );
+
+		return $comment;
+	}
+
+	$comment_args = array(
+		'orderby'    => 'comment_ID',
+		'order'      => 'DESC',
+		'number'     => 1,
+		'meta_query' => array(
+			'relation' => 'AND',
+			array(
+				'key'   => '_give_anonymous_donation',
+				'value' => 0,
+			),
+			array(
+				'key'   => '_give_donor_id',
+				'value' => $donor_id,
+			),
+		),
+	);
+
+	// Get donor donation comment for specific form.
+	if ( $form_id ) {
+		$comment_args['meta_query'][] = array(
+			'key'   => '_give_form_id',
+			'value' => $form_id,
+		);
+	}
+
+	$sql = Give()->comment->db->get_sql( $comment_args );
+
+	$comment = current( $wpdb->get_results( $sql ) );
+
+	return $comment;
+}
+
+/**
+ * Email template tag: {receipt_id}
+ *
+ * @since      1.0
+ * @deprecated 2.4.0
+ *
+ * @param array $tag_args
+ *
+ * @return string receipt_id
+ */
+function give_email_tag_receipt_id( $tag_args ) {
+	$receipt_id = '';
+	// Backward compatibility.
+	$tag_args = __give_20_bc_str_type_email_tag_param( $tag_args );
+	switch ( true ) {
+		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
+			$receipt_id = give_get_payment_key( $tag_args['payment_id'] );
+			break;
+	}
+
+	/**
+	 * Filter the {receipt_id} email template tag output.
+	 *
+	 * @since 2.0
+	 *
+	 * @param string $receipt_id
+	 * @param array  $tag_args
+	 */
+	return apply_filters( 'give_email_tag_receipt_id', $receipt_id, $tag_args );
+}
+
+
+/**
+ * Check site host
+ *
+ * @since 1.0
+ *
+ * @param bool /string $host The host to check
+ *
+ * @return bool true if host matches, false if not
+ */
+function give_is_host( $host = false ) {
+
+	_give_deprecated_function(
+		__FUNCTION__,
+		'2.4.2',
+		'give_get_host'
+	);
+
+	$return = false;
+
+	if ( $host ) {
+		$host = str_replace( ' ', '', strtolower( $host ) );
+
+		switch ( $host ) {
+			case 'wpengine':
+				if ( defined( 'WPE_APIKEY' ) ) {
+					$return = true;
+				}
+				break;
+			case 'pagely':
+				if ( defined( 'PAGELYBIN' ) ) {
+					$return = true;
+				}
+				break;
+			case 'icdsoft':
+				if ( DB_HOST == 'localhost:/tmp/mysql5.sock' ) {
+					$return = true;
+				}
+				break;
+			case 'networksolutions':
+				if ( DB_HOST == 'mysqlv5' ) {
+					$return = true;
+				}
+				break;
+			case 'ipage':
+				if ( strpos( DB_HOST, 'ipagemysql.com' ) !== false ) {
+					$return = true;
+				}
+				break;
+			case 'ipower':
+				if ( strpos( DB_HOST, 'ipowermysql.com' ) !== false ) {
+					$return = true;
+				}
+				break;
+			case 'mediatemplegrid':
+				if ( strpos( DB_HOST, '.gridserver.com' ) !== false ) {
+					$return = true;
+				}
+				break;
+			case 'pairnetworks':
+				if ( strpos( DB_HOST, '.pair.com' ) !== false ) {
+					$return = true;
+				}
+				break;
+			case 'rackspacecloud':
+				if ( strpos( DB_HOST, '.stabletransit.com' ) !== false ) {
+					$return = true;
+				}
+				break;
+			case 'sysfix.eu':
+			case 'sysfix.eupowerhosting':
+				if ( strpos( DB_HOST, '.sysfix.eu' ) !== false ) {
+					$return = true;
+				}
+				break;
+			case 'flywheel':
+				if ( strpos( $_SERVER['SERVER_NAME'], 'Flywheel' ) !== false ) {
+					$return = true;
+				}
+				break;
+			default:
+				$return = false;
+		}// End switch().
+	}// End if().
+
+	return $return;
 }

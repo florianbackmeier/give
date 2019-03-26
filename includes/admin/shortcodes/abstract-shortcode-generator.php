@@ -4,7 +4,7 @@
  *
  * @package     Give/Admin
  * @author      Paul Ryley
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @version     1.0
  * @since       1.3
@@ -178,7 +178,8 @@ abstract class Give_Shortcode_Generator {
 
 		if ( ! empty( $this->errors ) ) {
 			foreach ( $this->required as $name => $alert ) {
-				if ( false === array_search( $name, array_column( $generated_fields, 'name' ) ) ) {
+				// Using WordPress function in place of array_column wp_list_pluck as it support older version as well.
+				if ( false === array_search( $name, give_list_pluck( $generated_fields, 'name' ) ) ) {
 
 					$errors[] = $this->errors[ $name ];
 				}
@@ -193,6 +194,50 @@ abstract class Give_Shortcode_Generator {
 		}
 
 		return $generated_fields;
+	}
+
+
+	/**
+	 * Generate a TinyMCE docs_link field
+	 *
+	 * @param $field
+	 *
+	 * @return array
+	 */
+	protected function generate_docs_link( $field ){
+		// Add custom style to override mce style.
+		$dashicon_style = 'width: 20px;
+			height: 20px;
+			font-size: 17px;
+			line-height: 1;
+			font-family: dashicons;
+			text-decoration: inherit;
+			font-weight: normal;
+			font-style: normal;
+			vertical-align: top;
+			text-align: center;
+			transition: color .1s ease-in 0;';
+
+		$a_style = 'color: #999;
+			text-decoration: none;
+			font-style: italic;
+			font-size: 13px;';
+
+		$p_style = 'text-align:right;';
+
+		return $this->generate_container(
+			array(
+				'type' => 'container',
+				'html' => sprintf(
+					'<p class="give-docs-link" style="%5$s"><a href="%4$s" style="%3$s" target="_blank">%1$s<span class="dashicons dashicons-editor-help" style="%2$s"></a></span></p>',
+					$field['text'],
+					$dashicon_style,
+					$a_style,
+					esc_url( $field['link'] ),
+					$p_style
+				)
+			)
+		);
 	}
 
 	/**
@@ -270,7 +315,7 @@ abstract class Give_Shortcode_Generator {
 	}
 
 	/**
-	 * Generate a TinyMCE listbox field for a post_type
+	 * Generate a TinyMCE listbox field for a post_type.
 	 *
 	 * @param array $field
 	 *
@@ -281,19 +326,24 @@ abstract class Give_Shortcode_Generator {
 	protected function generate_post( $field ) {
 
 		$args = array(
-			'post_type'      => 'post',
-			'orderby'        => 'title',
-			'order'          => 'ASC',
-			'posts_per_page' => 30,
+			'post_type'        => 'post',
+			'orderby'          => 'title',
+			'order'            => 'ASC',
+			'posts_per_page'   => 30,
+			'suppress_filters' => false,
 		);
 
 		$args    = wp_parse_args( (array) $field['query_args'], $args );
+
 		$posts   = get_posts( $args );
 		$options = array();
 
-		if ( $posts ) {
+		if ( ! empty( $posts ) ) {
 			foreach ( $posts as $post ) {
-				$options[ absint( $post->ID ) ] = ( empty( $post->post_title ) ? sprintf( __( 'Untitled (#%s)', 'give' ), $post->ID ) : $post->post_title );
+				$options[ absint( $post->ID ) ] = empty( $post->post_title )
+					? sprintf( __( 'Untitled (#%s)', 'give' ), $post->ID )
+					/** This filter is documented in wp-includes/post-template.php */
+					: apply_filters( 'the_title', $post->post_title, $post->ID );
 			}
 
 			$field['type']    = 'listbox';
@@ -320,17 +370,23 @@ abstract class Give_Shortcode_Generator {
 	protected function generate_textbox( $field ) {
 
 		$textbox = shortcode_atts( array(
-			'label'     => '',
-			'maxLength' => '',
-			'minHeight' => '',
-			'minWidth'  => '',
-			'multiline' => false,
-			'name'      => false,
-			'tooltip'   => '',
-			'type'      => '',
-			'value'     => '',
-			'classes'   => ''
+			'label'       => '',
+			'maxLength'   => '',
+			'minHeight'   => '',
+			'minWidth'    => '',
+			'multiline'   => false,
+			'name'        => false,
+			'tooltip'     => '',
+			'type'        => '',
+			'value'       => '',
+			'classes'     => '',
+			'placeholder' => ''
 		), $field );
+
+		// Remove empty placeholder.
+		if( empty( $textbox['placeholder'] ) ) {
+			unset( $textbox['placeholder'] );
+		}
 
 		if ( $this->validate( $field ) ) {
 			return array_filter( $textbox, array( $this, 'return_textbox_value' ) );

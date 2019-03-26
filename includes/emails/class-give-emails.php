@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -87,6 +87,13 @@ class Give_Emails {
 	 * @since  1.0
 	 */
 	public $tag_args = array();
+
+	/**
+	 * Form ID
+	 *
+	 * @since  1.0
+	 */
+	public $form_id = 0;
 
 	/**
 	 * Get things going.
@@ -231,6 +238,21 @@ class Give_Emails {
 	public function build_email( $message ) {
 
 		if ( false === $this->html ) {
+
+			// Added Replacement check to simply behaviour of anchor tags.
+			$pattern = '/<a.+?href\=(?:["|\'])(.+?)(?:["|\']).*?>(.+?)<\/a>/i';
+			$message = preg_replace_callback(
+				$pattern,
+				function ( $return ) {
+					if ( $return[1] !== $return[2] ) {
+						return "{$return[2]} ( {$return[1]} )";
+					}
+
+					return trailingslashit( $return[1] );
+				},
+				$message
+			);
+
 			return apply_filters( 'give_email_message', wp_strip_all_tags( $message ), $this );
 		}
 
@@ -283,7 +305,21 @@ class Give_Emails {
 		do_action( 'give_email_footer', $this );
 
 		$body    = ob_get_clean();
+
+		// Email tag.
 		$message = str_replace( '{email}', $message, $body );
+
+		$header_img = Give_Email_Notification_Util::get_email_logo( $this->form_id );
+
+		if ( ! empty( $header_img ) ) {
+			$header_img = sprintf(
+				'<div id="template_header_image"><p style="margin-top:0;"><img style="max-width:450px;" src="%1$s" alt="%2$s" /></p></div>',
+				esc_url( $header_img ),
+				get_bloginfo( 'name' )
+			);
+		}
+
+		$message  = str_replace( '{email_logo}', $header_img, $message );
 
 		return apply_filters( 'give_email_message', $message, $this );
 	}
@@ -301,7 +337,7 @@ class Give_Emails {
 	public function send( $to, $subject, $message, $attachments = '' ) {
 
 		if ( ! did_action( 'init' ) && ! did_action( 'admin_init' ) ) {
-			_doing_it_wrong( __FUNCTION__, esc_html__( 'You cannot send email with Give_Emails until init/admin_init has been reached.', 'give' ), null );
+			give_doing_it_wrong( __FUNCTION__, esc_html__( 'You cannot send email with Give_Emails until init/admin_init has been reached.', 'give' ), null );
 
 			return false;
 		}
@@ -358,18 +394,34 @@ class Give_Emails {
 		remove_filter( 'wp_mail_from_name', array( $this, 'get_from_name' ) );
 		remove_filter( 'wp_mail_content_type', array( $this, 'get_content_type' ) );
 
-		// Reset heading to an empty string
+		// Reset email related params.
 		$this->heading = '';
+		$this->from_name = '';
+		$this->from_address = '';
+		$this->form_id = 0;
 	}
 
 	/**
 	 * Converts text to formatted HTML. This is primarily for turning line breaks into <p> and <br/> tags.
 	 *
 	 * @since 1.0
+	 *
+	 * @param string $message
+	 *
+	 * @return string
 	 */
 	public function text_to_html( $message ) {
+		/**
+		 * Filter the flag which decide to process email message with wpautop or not.
+		 *
+		 * @since 2.3.0
+		 */
+		$disable_wpautop = apply_filters( 'give_email_message_disable_wpautop', false );
 
-		if ( 'text/html' == $this->content_type || true === $this->html ) {
+		if (
+			( 'text/html' == $this->content_type || true === $this->html )
+			&& ! $disable_wpautop
+		) {
 			$message = wpautop( $message );
 		}
 

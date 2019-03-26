@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Admin/Reports
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -48,15 +48,23 @@ class Give_Export {
 	 * @return void
 	 */
 	public function headers() {
-		ignore_user_abort( true );
+		give_ignore_user_abort();
 
-		if ( ! give_is_func_disabled( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
-			set_time_limit( 0 );
-		}
+		/**
+		 * Filter to Modify CSV file name
+		 *
+		 * @since 2.1.0
+		 *
+		 * @param $file_name string file name
+		 * @param$export_type string export type name
+		 *
+		 * @return $file_name string file name
+		 */
+		$file_name = apply_filters( 'give_export_filename', 'give-export-' . $this->export_type . '-' . date( 'm-d-Y' ), $this->export_type );
 
 		nocache_headers();
 		header( 'Content-Type: text/csv; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename=give-export-' . $this->export_type . '-' . date( 'm-d-Y' ) . '.csv' );
+		header( 'Content-Disposition: attachment; filename=' . $file_name . '.csv' );
 		header( "Expires: 0" );
 	}
 

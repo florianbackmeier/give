@@ -5,7 +5,7 @@
  * This class handles batch processing of deleting donor data.
  *
  * @subpackage  Admin/Tools/Give_Tools_Delete_Donors
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.8.12
  */
@@ -96,6 +96,15 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 	public $donor_ids = array();
 
 	/**
+	 * Constructor.
+	 */
+	public function __construct( $_step = 1 ) {
+		parent::__construct( $_step );
+
+		$this->is_writable = true;
+	}
+
+	/**
 	 * Get the Export Data
 	 *
 	 * @access public
@@ -141,9 +150,9 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 	/**
 	 * Will Update or Add the donation and donors ids in the with option table for there respected key.
 	 *
-	 * @param string $step         On which the current ajax is running.
-	 * @param array  $donation_ids Contain the list of all the donation id's that has being add before this
-	 * @param array  $donor_ids    Contain the list of all the donors id's that has being add before this
+	 * @param string $step On which the current ajax is running.
+	 * @param array $donation_ids Contain the list of all the donation id's that has being add before this
+	 * @param array $donor_ids Contain the list of all the donors id's that has being add before this
 	 */
 	private function count( $step, $donation_ids = array(), $donor_ids = array() ) {
 
@@ -161,8 +170,17 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 			'posts_per_page' => $this->per_step,
 			'paged'          => $paged,
 			// ONLY TEST MODE TRANSACTIONS!!!
-			'meta_key'       => '_give_payment_mode',
-			'meta_value'     => 'test',
+			'meta_query' => array(
+				'relation' => 'OR',
+				array(
+					'key'   => '_give_payment_mode',
+					'value' => 'test',
+				),
+				array(
+					'key'   => '_give_payment_gateway',
+					'value' => 'manual',
+				),
+			),
 		) );
 
 		// Reset the post data.
@@ -225,7 +243,11 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 	public function process_step() {
 
 		if ( ! $this->can_export() ) {
-			wp_die( __( 'You do not have permission to delete test transactions.', 'give' ), __( 'Error', 'give' ), array( 'response' => 403 ) );
+			wp_die(
+				esc_html__( 'You do not have permission to delete test transactions.', 'give' ),
+				esc_html__( 'Error', 'give' ),
+				array( 'response' => 403 )
+			);
 		}
 
 		$had_data = $this->get_data();
@@ -235,15 +257,10 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 
 			return true;
 		} else {
-			update_option( 'give_earnings_total', give_get_total_earnings( true ) );
+			update_option( 'give_earnings_total', give_get_total_earnings( true ), false );
 			Give_Cache::delete( Give_Cache::get_key( 'give_estimated_monthly_stats' ) );
 
 			$this->delete_option( $this->donation_key );
-
-			// Reset the sequential order numbers
-			if ( give_get_option( 'enable_sequential' ) ) {
-				delete_option( 'give_last_payment_number' );
-			}
 
 			$this->done    = true;
 			$this->message = __( 'Test donor and transactions successfully deleted.', 'give' );
@@ -292,7 +309,6 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 			$this->total_step     = ( ( count( $donation_ids ) / $this->per_step ) * 2 ) + count( $donor_ids );
 			$this->step_completed = $page;
 
-
 			if ( $count > $this->per_step ) {
 
 				$this->update_option( $this->step_on_key, $page );
@@ -311,24 +327,12 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 				$this->update_option( $this->step_on_key, '0' );
 			}
 
-			global $wpdb;
 			foreach ( $donation_ids as $item ) {
-
-				// will delete the payment log first.
-				$parent_query = $wpdb->prepare( "SELECT post_id as id FROM $wpdb->postmeta WHERE meta_key = %s AND meta_value = %d", '_give_log_payment_id', (int) $item );
-				$log_id       = $wpdb->get_row( $parent_query, ARRAY_A );
-				// Check if payment has it log or not if yes then delete it.
-				if ( ! empty( $log_id['id'] ) ) {
-					// Deleting the payment log.
-					wp_delete_post( $log_id['id'], true );
-				}
-
 				// Delete the main payment.
-				wp_delete_post( $item, true );
+				give_delete_donation( absint( $item ) );
 			}
 			do_action( 'give_delete_log_cache' );
 		}
-
 
 		// Here we delete all the donor
 		if ( 3 === $step ) {
@@ -389,7 +393,7 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 	/**
 	 * Given a key, get the information from the Database Directly
 	 *
-	 * @since  1.8.12
+	 * @since  1.8.13
 	 *
 	 * @param  string $key The option_name
 	 *
@@ -404,8 +408,8 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 	 *
 	 * @since  1.8.12s
 	 *
-	 * @param  string $key   The option_name
-	 * @param  mixed  $value The value to store
+	 * @param  string $key The option_name
+	 * @param  mixed $value The value to store
 	 *
 	 * @return void
 	 */
@@ -451,5 +455,28 @@ class Give_Tools_Delete_Donors extends Give_Batch_Export {
 	 */
 	private function get_step_page() {
 		return $this->get_option( $this->step_on_key, false );
+	}
+
+	/**
+	 * Unset the properties specific to the donors export.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array $request
+	 * @param Give_Batch_Export $export
+	 */
+	public function unset_properties( $request, $export ) {
+		if ( $export->done ) {
+			// Delete all the donation ids.
+			$this->delete_option( $this->donation_key );
+			// Delete all the donor ids.
+			$this->delete_option( $this->donor_key );
+
+			// Delete all the step and set to 'count' which if the first step in the process of deleting the donors.
+			$this->delete_option( $this->step_key );
+
+			// Delete tha page count of the step.
+			$this->delete_option( $this->step_on_key );
+		}
 	}
 }

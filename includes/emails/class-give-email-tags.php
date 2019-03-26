@@ -17,7 +17,7 @@
  *
  * @package     Give
  * @subpackage  Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -50,19 +50,39 @@ class Give_Email_Template_Tags {
 	 * Add an email tag.
 	 *
 	 * @since 1.0
+	 * @since 2.2.1 Deprecated function argument and accept them as array
 	 *
-	 * @param string   $tag         Email tag to be replace in email
-	 * @param string   $description Email tag description text
-	 * @param callable $func        Hook to run when email tag is found
-	 * @param string   $context     Email tag category
+	 * @param array $args     {
+	 *
+	 * @type string $tag      Email template tag name. The name of the tag to register, such as “engraving_message” as
+	 *       in our code example below. In the Give email settings, tags are wrapped with {} but not when they are
+	 *       registered.
+	 * @type string $desc     Email template tag description. A description of what the tag displays. This is
+	 *       informational for admins so they know what to expect the tag outputs in the notification.
+	 * @type string $func     Email template tag render function name. The callback function to render the tag’s
+	 *       output.
+	 * @type string $context  Email template tag context. The emails that this tag should appear as functional
+	 *       underneath the content editor. Options include:
+	 *               donation – appears on donation related emails
+	 *               form – information related to the donation form
+	 *               donor – information related to the donor such as first name or last name.
+	 *               general – appears on all emails
+	 * @type bool   $is_admin Flag to check to show email template tag on email edit screen or not. Whether this tag should only be available to admins. Usually reserved for tags with sensitive information. Default is false.
+	 *
+	 * }
 	 */
-	public function add( $tag, $description, $func, $context = '' ) {
-		if ( is_callable( $func ) ) {
-			$this->tags[ $tag ] = array(
-				'tag'         => $tag,
-				'description' => $description,
-				'func'        => $func,
-				'context'     => give_check_variable( $context, 'empty', 'general' ),
+	public function add( $args ) {
+		__give_211_bc_email_template_tag_param( $args, func_get_args() );
+
+		if ( is_callable( $args['func'] ) ) {
+			$this->tags[ $args['tag'] ] = array(
+				'tag'         => $args['tag'],
+				'desc'        => $args['desc'],
+				'func'        => $args['func'],
+				'context'     => give_check_variable( $args['context'], 'empty', 'general' ),
+				'is_admin'    => (bool) $args['is_admin'], // Introduced in 2.2.1
+				'description' => $args['desc'], // deprecated in 2.2.1
+				'function'    => $args['func'], // deprecated in 2.2.1
 			);
 		}
 	}
@@ -95,7 +115,7 @@ class Give_Email_Template_Tags {
 	 * Returns a list of all email tags
 	 *
 	 * @since 1.0
-	 * @since 2.0 Add $context_type param to get specific  contect email tags.
+	 * @since 2.0 Add $context_type param to get specific context email tags.
 	 *
 	 * @param string $context_type
 	 * @param string $field
@@ -105,11 +125,11 @@ class Give_Email_Template_Tags {
 	public function get_tags( $context_type = 'all', $field = '' ) {
 		$tags = $this->tags;
 
-		if( 'all' !== $context_type ) {
+		if ( 'all' !== $context_type ) {
 			$tags = array();
 
 			foreach ( $this->tags as $tag ) {
-				if( empty( $tag['context'] ) || $context_type !== $tag['context'] ) {
+				if ( empty( $tag['context'] ) || $context_type !== $tag['context'] ) {
 					continue;
 				}
 
@@ -117,7 +137,7 @@ class Give_Email_Template_Tags {
 			}
 		}
 
-		if( ! empty( $tags ) && ! empty( $field )  ) {
+		if ( ! empty( $tags ) && ! empty( $field ) ) {
 			$tags = wp_list_pluck( $tags, $field );
 		}
 
@@ -145,7 +165,7 @@ class Give_Email_Template_Tags {
 
 		$this->tag_args = $tag_args;
 
-		$new_content = preg_replace_callback( "/{([A-z0-9\-\_]+)}/s", array( $this, 'do_tag' ), $content );
+		$new_content = preg_replace_callback( '/{([A-z0-9\-\_]+)}/s', array( $this, 'do_tag' ), $content );
 
 		$this->tag_args = null;
 
@@ -180,14 +200,15 @@ class Give_Email_Template_Tags {
  * Add an email tag.
  *
  * @since 1.0
+ * @since 2.2.1 Deprecate function argument and accept them as array
  *
- * @param string   $tag         Email tag to be replace in email
- * @param string   $description Description of the email tag added
- * @param callable $func        Hook to run when email tag is found
- * @param string   $context     Email tag category
+ * @param array $args Email template tag argument
+ *                    Check Give_Email_Template_Tags::add function description for more information
  */
-function give_add_email_tag( $tag, $description, $func, $context = '' ) {
-	Give()->email_tags->add( $tag, $description, $func, $context );
+function give_add_email_tag( $args ) {
+	__give_211_bc_email_template_tag_param( $args, func_get_args() );
+
+	Give()->email_tags->add( $args );
 }
 
 /**
@@ -242,11 +263,12 @@ function give_get_emails_tags_list() {
 		<div class="give-email-tags-wrap">
 			<?php foreach ( $email_tags as $email_tag ) : ?>
 				<span class="give_<?php echo $email_tag['tag']; ?>_tag">
-					<code>{<?php echo $email_tag['tag']; ?>}</code> - <?php echo $email_tag['description']; ?>
+					<code>{<?php echo $email_tag['tag']; ?>}</code> - <?php echo $email_tag['desc']; ?>
 				</span>
-			<?php endforeach; ?>
+            <?php endforeach; ?>
 		</div>
-	<?php endif;
+	<?php
+	endif;
 
 	// Return the list.
 	return ob_get_clean();
@@ -266,12 +288,16 @@ function give_get_emails_tags_list() {
  */
 function give_do_email_tags( $content, $tag_args ) {
 	// Backward compatibility < 2.0
-	if ( ! is_array( $tag_args ) ) {
+	if ( ! is_array( $tag_args ) && is_numeric( $tag_args ) ) {
 		$tag_args = array( 'payment_id' => $tag_args );
 	}
 
+	$email_tags = Give()->email_tags instanceof Give_Email_Template_Tags
+		? Give()->email_tags
+		: new Give_Email_Template_Tags();
+
 	// Replace all tags
-	$content = Give()->email_tags->do_tags( $content, $tag_args );
+	$content = $email_tags->do_tags( $content, $tag_args );
 
 	/**
 	 * Filter the filtered content text.
@@ -300,6 +326,7 @@ function give_load_email_tags() {
 	 */
 	do_action( 'give_add_email_tags' );
 }
+
 add_action( 'init', 'give_load_email_tags', - 999 );
 
 
@@ -314,118 +341,172 @@ function give_setup_email_tags() {
 	$email_tags = array(
 		/*	Donation Payment */
 		array(
-			'tag'         => 'donation',
-			'description' => esc_html__( 'The donation form name, and the donation level (if applicable).', 'give' ),
-			'function'    => 'give_email_tag_donation',
-			'context'     => 'donation',
+			'tag'     => 'donation',
+			'desc'    => esc_html__( 'The donation form name, and the donation level (if applicable).', 'give' ),
+			'func'    => 'give_email_tag_donation',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'amount',
-			'description' => esc_html__( 'The total donation amount with currency sign.', 'give' ),
-			'function'    => 'give_email_tag_amount',
-			'context'     => 'donation',
+			'tag'     => 'amount',
+			'desc'    => esc_html__( 'The total donation amount with currency sign.', 'give' ),
+			'func'    => 'give_email_tag_amount',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'price',
-			'description' => esc_html__( 'The total donation amount with currency sign.', 'give' ),
-			'function'    => 'give_email_tag_price',
-			'context'     => 'donation',
+			'tag'     => 'price',
+			'desc'    => esc_html__( 'The total donation amount with currency sign.', 'give' ),
+			'func'    => 'give_email_tag_price',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'billing_address',
-			'description' => esc_html__( 'The donor\'s billing address.', 'give' ),
-			'function'    => 'give_email_tag_billing_address',
-			'context'     => 'donation',
+			'tag'     => 'billing_address',
+			'desc'    => esc_html__( 'The donor\'s billing address.', 'give' ),
+			'func'    => 'give_email_tag_billing_address',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'date',
-			'description' => esc_html__( 'The date of the donation.', 'give' ),
-			'function'    => 'give_email_tag_date',
-			'context'     => 'donation',
+			'tag'     => 'date',
+			'desc'    => esc_html__( 'The date of the donation.', 'give' ),
+			'func'    => 'give_email_tag_date',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'payment_id',
-			'description' => esc_html__( 'The unique ID number for this donation.', 'give' ),
-			'function'    => 'give_email_tag_payment_id',
-			'context'     => 'donation',
+			'tag'     => 'payment_id',
+			'desc'    => esc_html__( 'The unique ID number for this donation.', 'give' ),
+			'func'    => 'give_email_tag_payment_id',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'payment_method',
-			'description' => esc_html__( 'The method of payment used for this donation.', 'give' ),
-			'function'    => 'give_email_tag_payment_method',
-			'context'     => 'donation',
+			'tag'     => 'payment_method',
+			'desc'    => esc_html__( 'The method of payment used for this donation.', 'give' ),
+			'func'    => 'give_email_tag_payment_method',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'payment_total',
-			'description' => esc_html__( 'The payment total for this donation.', 'give' ),
-			'function'    => 'give_email_tag_payment_total',
-			'context'     => 'donation',
+			'tag'     => 'payment_total',
+			'desc'    => esc_html__( 'The payment total for this donation.', 'give' ),
+			'func'    => 'give_email_tag_payment_total',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'receipt_id',
-			'description' => esc_html__( 'The unique ID number for this donation receipt.', 'give' ),
-			'function'    => 'give_email_tag_receipt_id',
-			'context'     => 'donation',
+			// Deprecated email tag.
+			'tag'     => 'receipt_id',
+			'desc'    => esc_html__( 'The unique ID number for this donation receipt.', 'give' ),
+			'func'    => 'give_email_tag_receipt_id',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'receipt_link',
-			'description' => esc_html__( 'The donation receipt direct link, to view the receipt on the website.', 'give' ),
-			'function'    => 'give_email_tag_receipt_link',
-			'context'     => 'donation',
+			'tag'     => 'receipt_link',
+			'desc'    => esc_html__( 'The donation receipt direct link, to view the receipt on the website.', 'give' ),
+			'func'    => 'give_email_tag_receipt_link',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'receipt_link_url',
-			'description' => esc_html__( 'The donation receipt direct URL, to view the receipt on the website.', 'give' ),
-			'function'    => 'give_email_tag_receipt_link_url',
-			'context'     => 'donation',
+			'tag'     => 'receipt_link_url',
+			'desc'    => esc_html__( 'The donation receipt direct URL, to view the receipt on the website.', 'give' ),
+			'func'    => 'give_email_tag_receipt_link_url',
+			'context' => 'donation',
+		),
+		array(
+			'tag'     => 'donor_note',
+			'desc'    => esc_html__( 'The donor note.', 'give' ),
+			'func'    => 'give_email_tag_donor_note',
+			'context' => 'donation',
 		),
 
 		/* Donation Form */
 		array(
-			'tag'         => 'form_title',
-			'description' => esc_html__( 'The donation form name.', 'give' ),
-			'function'    => 'give_email_tag_form_title',
-			'context'     => 'form',
+			'tag'     => 'form_title',
+			'desc'    => esc_html__( 'The donation form name.', 'give' ),
+			'func'    => 'give_email_tag_form_title',
+			'context' => 'form',
 		),
 
 		/* Donor */
 		array(
-			'tag'         => 'name',
-			'description' => esc_html__( 'The donor\'s first name.', 'give' ),
-			'function'    => 'give_email_tag_first_name',
-			'context'     => 'donor',
+			'tag'     => 'name',
+			'desc'    => esc_html__( 'The donor\'s name for salutation purposes—either first name only or prefix and last name if provided.', 'give' ),
+			'func'    => 'give_email_tag_first_name',
+			'context' => 'donor',
 		),
 		array(
-			'tag'         => 'fullname',
-			'description' => esc_html__( 'The donor\'s full name, first and last.', 'give' ),
-			'function'    => 'give_email_tag_fullname',
-			'context'     => 'donor',
+			'tag'     => 'fullname',
+			'desc'    => esc_html__( 'The donor\'s full name, first and last.', 'give' ),
+			'func'    => 'give_email_tag_fullname',
+			'context' => 'donor',
 		),
 		array(
-			'tag'         => 'username',
-			'description' => esc_html__( 'The donor\'s user name on the site, if they registered an account.', 'give' ),
-			'function'    => 'give_email_tag_username',
-			'context'     => 'donor',
+			'tag'     => 'username',
+			'desc'    => esc_html__( 'The donor\'s user name on the site, if they registered an account.', 'give' ),
+			'func'    => 'give_email_tag_username',
+			'context' => 'donor',
 		),
 		array(
-			'tag'         => 'user_email',
-			'description' => esc_html__( 'The donor\'s email address.', 'give' ),
-			'function'    => 'give_email_tag_user_email',
-			'context'     => 'donor',
+			'tag'     => 'company_name',
+			'desc'    => esc_html__( 'The donor\'s company name.', 'give' ),
+			'func'    => 'give_email_tag_company_name',
+			'context' => 'donation',
 		),
 		array(
-			'tag'         => 'email_access_link',
-			'description' => esc_html__( 'The donor\'s email access link.', 'give' ),
-			'function'    => 'give_email_tag_email_access_link',
-			'context'     => 'donor',
+			'tag'     => 'user_email',
+			'desc'    => esc_html__( 'The donor\'s email address.', 'give' ),
+			'func'    => 'give_email_tag_user_email',
+			'context' => 'donor',
+		),
+		array(
+			'tag'     => 'email_access_link',
+			'desc'    => esc_html__( 'The donor\'s email access link.', 'give' ),
+			'func'    => 'give_email_tag_donation_history_link',
+			'context' => 'donor',
+		),
+		array(
+			'tag'     => 'donation_history_link',
+			'desc'    => esc_html__( 'The donor\'s email access link for donation history.', 'give' ),
+			'func'    => 'give_email_tag_donation_history_link',
+			'context' => 'donor',
 		),
 
 		/* General */
 		array(
-			'tag'         => 'sitename',
-			'description' => esc_html__( 'The name of your site.', 'give' ),
-			'function'    => 'give_email_tag_sitename',
-			'context'     => 'general',
+			'tag'     => 'sitename',
+			'desc'    => esc_html__( 'The name of your site.', 'give' ),
+			'func'    => 'give_email_tag_sitename',
+			'context' => 'general',
+		),
+
+		array(
+			'tag'     => 'reset_password_link',
+			'desc'    => esc_html__( 'The reset password link for user.', 'give' ),
+			'func'    => 'give_email_tag_reset_password_link',
+			'context' => 'general',
+		),
+
+		array(
+			'tag'     => 'admin_email',
+			'desc'    => esc_html__( 'The custom admin email which is set inside Emails > Contact Information. By default this tag will use your WordPress admin email.', 'give' ),
+			'func'    => 'give_email_admin_email',
+			'context' => 'general',
+		),
+
+		array(
+			'tag'     => 'site_url',
+			'desc'    => esc_html__( 'The website URL.', 'give' ),
+			'func'    => 'give_email_site_url',
+			'context' => 'general',
+		),
+
+		array(
+			'tag'     => 'offline_mailing_address',
+			'desc'    => esc_html__( 'The Offline Mailing Address which is used for the Offline Donations Payment Gateway.', 'give' ),
+			'func'    => 'give_email_offline_mailing_address',
+			'context' => 'general',
+		),
+
+		array(
+			'tag'     => 'donor_comment',
+			'desc'    => esc_html__( 'The Donor Comment that was submitted with the donation.', 'give' ),
+			'func'    => 'give_email_donor_comment',
+			'context' => 'donor',
 		),
 
 	);
@@ -435,7 +516,7 @@ function give_setup_email_tags() {
 
 	// Add email tags
 	foreach ( $email_tags as $email_tag ) {
-		give_add_email_tag( $email_tag['tag'], $email_tag['description'], $email_tag['function'], $email_tag['context'] );
+		give_add_email_tag( $email_tag );
 	}
 
 }
@@ -461,18 +542,27 @@ function give_email_tag_first_name( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment = new Give_Payment( $tag_args['payment_id'] );
+			$donor_info  = give_get_payment_meta_user_info( $tag_args['payment_id'] );
+			$email_names = give_get_email_names( $donor_info );
+			$firstname   = $email_names['name'];
 
-			// Get firstname.
-			if ( ! empty( $payment->user_info ) ) {
-				$email_names = give_get_email_names( $payment->user_info );
-				$firstname   = $email_names['name'];
-			}
 			break;
 
 		case give_check_variable( $tag_args, 'isset', 0, 'user_id' ):
-			$user_info = get_user_by( 'id', $tag_args['user_id'] );
-			$firstname = $user_info->first_name;
+			$firstname = Give()->donor_meta->get_meta(
+				Give()->donors->get_column_by( 'id', 'user_id', $tag_args['user_id'] ),
+				'_give_donor_first_name',
+				true
+			);
+			break;
+
+		/**
+		 * Get Donor First Name from donor id
+		 *
+		 * @since 2.0
+		 */
+		case give_check_variable( $tag_args, 'isset', 0, 'donor_id' ):
+			$firstname = Give()->donor_meta->get_meta( $tag_args['donor_id'], '_give_donor_first_name', true );
 			break;
 	}
 
@@ -506,18 +596,22 @@ function give_email_tag_fullname( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment = new Give_Payment( $tag_args['payment_id'] );
-
-			// Get fullname.
-			if ( ! empty( $payment->user_info ) ) {
-				$email_names = give_get_email_names( $payment->user_info );
-				$fullname    = $email_names['fullname'];
-			}
+			$donor_info  = give_get_payment_meta_user_info( $tag_args['payment_id'] );
+			$email_names = give_get_email_names( $donor_info );
+			$fullname    = $email_names['fullname'];
 			break;
 
 		case give_check_variable( $tag_args, 'isset', 0, 'user_id' ):
-			$user_info = get_user_by( 'id', $tag_args['user_id'] );
-			$fullname  = trim( "{$user_info->first_name} {$user_info->last_name}" );
+			$fullname = Give()->donors->get_column_by( 'name', 'user_id', $tag_args['user_id'] );
+			break;
+
+		/**
+		 * Get Donor Full Name from donor id
+		 *
+		 * @since 2.0
+		 */
+		case give_check_variable( $tag_args, 'isset', 0, 'donor_id' ):
+			$fullname = Give()->donors->get_column( 'name', $tag_args['donor_id'] );
 			break;
 	}
 
@@ -551,18 +645,26 @@ function give_email_tag_username( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment = new Give_Payment( $tag_args['payment_id'] );
-
-			// Get username.
-			if ( ! empty( $payment->user_info ) ) {
-				$email_names = give_get_email_names( $payment->user_info );
-				$username    = $email_names['username'];
-			}
+			$donor_info  = give_get_payment_meta_user_info( $tag_args['payment_id'] );
+			$email_names = give_get_email_names( $donor_info );
+			$username    = $email_names['username'];
 			break;
 
 		case give_check_variable( $tag_args, 'isset', 0, 'user_id' ):
 			$user_info = get_user_by( 'id', $tag_args['user_id'] );
 			$username  = $user_info->user_login;
+			break;
+
+		/**
+		 * Get Donor Username from donor id
+		 *
+		 * @since 2.0
+		 */
+		case give_check_variable( $tag_args, 'isset', 0, 'donor_id' ):
+			if ( $user_id = Give()->donors->get_column( 'user_id', $tag_args['donor_id'] ) ) {
+				$user_info = get_user_by( 'id', $user_id );
+				$username  = $user_info->user_login;
+			}
 			break;
 	}
 
@@ -596,13 +698,21 @@ function give_email_tag_user_email( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment = new Give_Payment( $tag_args['payment_id'] );
-			$email   = $payment->email;
+			$email = give_get_donation_donor_email( $tag_args['payment_id'] );
 			break;
 
 		case give_check_variable( $tag_args, 'isset', 0, 'user_id' ):
 			$user_info = get_user_by( 'id', $tag_args['user_id'] );
 			$email     = $user_info->user_email;
+			break;
+
+		/**
+		 * Get Donor Email from donor id
+		 *
+		 * @since 2.0
+		 */
+		case give_check_variable( $tag_args, 'isset', 0, 'donor_id' ):
+			$email = Give()->donors->get_column( 'email', $tag_args['donor_id'] );
 			break;
 	}
 
@@ -636,29 +746,23 @@ function give_email_tag_billing_address( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$user_info    = give_get_payment_meta_user_info( $tag_args['payment_id'] );
-			$user_address = give_check_variable(
-				$user_info,
-				'isset',
-				array(
-					'line1'   => '',
-					'line2'   => '',
-					'city'    => '',
-					'country' => '',
-					'state'   => '',
-					'zip'     => '',
-				),
-				'address'
-			);
+			$donation_address = give_get_donation_address( $tag_args['payment_id'] );
 
-			$address = $user_address['line1'] . "\n";
+			$billing_address                   = array();
+			$billing_address['street_address'] = '';
+			$billing_address['street_address'] .= $donation_address['line1'];
 
-			if ( ! empty( $user_address['line2'] ) ) {
-				$address .= $user_address['line2'] . "\n";
+			if ( ! empty( $donation_address['line2'] ) ) {
+				$billing_address['street_address'] .= "\n" . $donation_address['line2'];
 			}
 
-			$address .= $user_address['city'] . ' ' . $user_address['zip'] . ' ' . $user_address['state'] . "\n";
-			$address .= $user_address['country'];
+			$billing_address['city']        = $donation_address['city'];
+			$billing_address['state']       = $donation_address['state'];
+			$billing_address['postal_code'] = $donation_address['zip'];
+			$billing_address['country']     = $donation_address['country'];
+
+			$address = give_get_formatted_address( $billing_address );
+
 			break;
 	}
 
@@ -680,9 +784,9 @@ function give_email_tag_billing_address( $tag_args ) {
  *
  * Date of donation
  *
- * @param array $tag_args
+ * @param array $tag_args Arguments which helps to decode email template tags.
  *
- * @return string date
+ * @return string $date Post Date.
  */
 function give_email_tag_date( $tag_args ) {
 	$date = '';
@@ -692,8 +796,7 @@ function give_email_tag_date( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment = new Give_Payment( $tag_args['payment_id'] );
-			$date    = date_i18n( give_date_format(), strtotime( $payment->date ) );
+			$date = date_i18n( give_date_format(), get_the_date( 'U', $tag_args['payment_id'] ) );
 			break;
 	}
 
@@ -727,8 +830,7 @@ function give_email_tag_amount( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment     = new Give_Payment( $tag_args['payment_id'] );
-			$give_amount = give_currency_filter( give_format_amount( $payment->total, array( 'sanitize' => false ) ), $payment->currency );
+			$give_amount = give_donation_amount( $tag_args['payment_id'], true );
 			$amount      = html_entity_decode( $give_amount, ENT_COMPAT, 'UTF-8' );
 			break;
 	}
@@ -776,8 +878,7 @@ function give_email_tag_payment_id( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment    = new Give_Payment( $tag_args['payment_id'] );
-			$payment_id = $payment->number;
+			$payment_id = Give()->seq_donation_number->get_serial_code( $tag_args['payment_id'] );
 			break;
 	}
 
@@ -790,39 +891,6 @@ function give_email_tag_payment_id( $tag_args ) {
 	 * @param array  $tag_args
 	 */
 	return apply_filters( 'give_email_tag_payment_id', $payment_id, $tag_args );
-}
-
-/**
- * Email template tag: {receipt_id}
- *
- * The unique ID number for this donation receipt
- *
- * @param array $tag_args
- *
- * @return string receipt_id
- */
-function give_email_tag_receipt_id( $tag_args ) {
-	$receipt_id = '';
-
-	// Backward compatibility.
-	$tag_args = __give_20_bc_str_type_email_tag_param( $tag_args );
-
-	switch ( true ) {
-		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment    = new Give_Payment( $tag_args['payment_id'] );
-			$receipt_id = $payment->key;
-			break;
-	}
-
-	/**
-	 * Filter the {receipt_id} email template tag output.
-	 *
-	 * @since 2.0
-	 *
-	 * @param string $receipt_id
-	 * @param array  $tag_args
-	 */
-	return apply_filters( 'give_email_tag_receipt_id', $receipt_id, $tag_args );
 }
 
 /**
@@ -842,11 +910,18 @@ function give_email_tag_donation( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment             = new Give_Payment( $tag_args['payment_id'] );
-			$payment_meta        = $payment->payment_meta;
-			$level_title         = give_has_variable_prices( $payment->form_id );
+			$level_title         = give_has_variable_prices( give_get_payment_form_id( $tag_args['payment_id'] ) );
 			$separator           = $level_title ? '-' : '';
-			$donation_form_title = strip_tags( give_check_variable( give_get_payment_form_title( $payment_meta, false, $separator ), 'empty', '' ) );
+			$donation_form_title = strip_tags(
+				give_check_variable(
+					give_get_donation_form_title(
+						$tag_args['payment_id'],
+						array( 'separator' => $separator )
+					),
+					'empty',
+					''
+				)
+			);
 			break;
 	}
 
@@ -882,9 +957,7 @@ function give_email_tag_form_title( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment             = new Give_Payment( $tag_args['payment_id'] );
-			$payment_meta        = $payment->payment_meta;
-			$donation_form_title = strip_tags( give_check_variable( $payment_meta, 'empty', '', 'form_title' ) );
+			$donation_form_title = give_get_payment_meta( $tag_args['payment_id'], '_give_payment_form_title' );
 			break;
 	}
 
@@ -899,6 +972,43 @@ function give_email_tag_form_title( $tag_args ) {
 	return apply_filters(
 		'give_email_tag_form_title',
 		$donation_form_title,
+		$tag_args
+	);
+}
+
+/**
+ * Email template tag: {company_name}
+ * Output the donation form company name filed.
+ *
+ * @since 2.1.0
+ *
+ * @param array $tag_args
+ *
+ * @return string $company_name
+ */
+function give_email_tag_company_name( $tag_args ) {
+	$company_name = '';
+
+	// Backward compatibility.
+	$tag_args = __give_20_bc_str_type_email_tag_param( $tag_args );
+
+	switch ( true ) {
+		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
+			$company_name = give_get_payment_meta( $tag_args['payment_id'], '_give_donation_company', true );
+			break;
+	}
+
+	/**
+	 * Filter the {company_name} email template tag output.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param string $company_name
+	 * @param array  $tag_args
+	 */
+	return apply_filters(
+		'give_email_tag_company_name',
+		$company_name,
 		$tag_args
 	);
 }
@@ -923,8 +1033,7 @@ function give_email_tag_payment_method( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment        = new Give_Payment( $tag_args['payment_id'] );
-			$payment_method = give_get_gateway_checkout_label( $payment->gateway );
+			$payment_method = give_get_gateway_checkout_label( give_get_payment_gateway( $tag_args['payment_id'] ) );
 			break;
 	}
 
@@ -963,8 +1072,8 @@ function give_email_tag_payment_total( $tag_args ) {
 
 	switch ( true ) {
 		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
-			$payment       = new Give_Payment( $tag_args['payment_id'] );
-			$payment_total = give_currency_filter( $payment->total );
+			$give_payment_total = give_currency_filter( give_format_amount( give_get_payment_total( $tag_args['payment_id'] ) ) );
+			$payment_total      = html_entity_decode( $give_payment_total, ENT_COMPAT, 'UTF-8' );
 			break;
 	}
 
@@ -1018,7 +1127,7 @@ function give_email_tag_sitename( $tag_args = array() ) {
  *
  * The donation receipt direct link, to view the receipt on the website.
  *
- * @param array $tag_args
+ * @param array $tag_args Email Tag Arguments.
  *
  * @return string receipt_link
  */
@@ -1026,18 +1135,15 @@ function give_email_tag_receipt_link( $tag_args ) {
 	// Backward compatibility.
 	$tag_args = __give_20_bc_str_type_email_tag_param( $tag_args );
 
-	$receipt_url = give_get_receipt_url( give_check_variable( $tag_args, 'empty', 0, 'payment_id' ) );
+	$donation_id = give_check_variable( $tag_args, 'empty', 0, 'payment_id' );
+	$receipt_url = give_get_view_receipt_url( $donation_id );
 
 	// Bailout.
 	if ( give_get_option( 'email_template' ) === 'none' ) {
 		return $receipt_url;
 	}
 
-	$formatted = sprintf(
-		'<a href="%1$s">%2$s</a>',
-		$receipt_url,
-		esc_html__( 'View it in your browser &raquo;', 'give' )
-	);
+	$formatted = give_get_view_receipt_link( $tag_args['payment_id'] );
 
 	/**
 	 * Filter the {receipt_link} email template tag output.
@@ -1069,7 +1175,7 @@ function give_email_tag_receipt_link_url( $tag_args ) {
 	// Backward compatibility.
 	$tag_args = __give_20_bc_str_type_email_tag_param( $tag_args );
 
-	$receipt_link_url = give_get_receipt_url( give_check_variable( $tag_args, 'empty', 0, 'payment_id' ) );
+	$receipt_link_url = give_get_view_receipt_url( give_check_variable( $tag_args, 'empty', 0, 'payment_id' ) );
 
 	/**
 	 * Filter the {receipt_link_url} email template tag output.
@@ -1086,40 +1192,16 @@ function give_email_tag_receipt_link_url( $tag_args ) {
 	);
 }
 
-
 /**
- * Get receipt_url
+ * Email template tag: {donation_history_link}
  *
  * @since 2.0
  *
- * @param int $payment_id
+ * @param array $tag_args Email Tag Arguments.
  *
  * @return string
  */
-function give_get_receipt_url( $payment_id ) {
-	$receipt_url = '';
-
-	if ( $payment_id ) {
-		$receipt_url = esc_url( add_query_arg( array(
-			'payment_key' => give_get_payment_key( $payment_id ),
-			'give_action' => 'view_receipt',
-		), home_url() ) );
-	}
-
-	return $receipt_url;
-}
-
-
-/**
- * Email template tag: {email_access_link}
- *
- * @since 2.0
- *
- * @param array $tag_args
- *
- * @return string
- */
-function give_email_tag_email_access_link( $tag_args ) {
+function give_email_tag_donation_history_link( $tag_args ) {
 	$donor_id          = 0;
 	$donor             = array();
 	$email_access_link = '';
@@ -1128,6 +1210,12 @@ function give_email_tag_email_access_link( $tag_args ) {
 	$tag_args = __give_20_bc_str_type_email_tag_param( $tag_args );
 
 	switch ( true ) {
+		
+	    case ! empty( $tag_args['payment_id'] ):
+			$donor_id = Give()->payment_meta->get_meta( $tag_args['payment_id'], '_give_payment_donor_id', true );
+			$donor    = Give()->donors->get_by( 'id', $donor_id );
+			break;
+		
 		case ! empty( $tag_args['donor_id'] ):
 			$donor_id = $tag_args['donor_id'];
 			$donor    = Give()->donors->get_by( 'id', $tag_args['donor_id'] );
@@ -1146,35 +1234,52 @@ function give_email_tag_email_access_link( $tag_args ) {
 	if ( $donor_id ) {
 		$verify_key = wp_generate_password( 20, false );
 
-		// Generate a new verify key
+		// Generate a new verify key.
 		Give()->email_access->set_verify_key( $donor_id, $donor->email, $verify_key );
 
-		$access_url = add_query_arg(
-			array(
-				'give_nl' => $verify_key,
-			),
-			get_permalink( give_get_option( 'history_page' ) )
-		);
+		// update verify key in email tags.
+		$tag_args['verify_key'] = $verify_key;
 
-		if( empty( $tag_args['email_content_type'] ) || 'text/html' === $tag_args['email_content_type'] ) {
+		// update donor id in email tags.
+		$tag_args['donor_id'] = $donor_id;
+
+		$access_url = add_query_arg(
+            array(
+                'give_nl' => $verify_key,
+            ),
+            give_get_history_page_uri()
+        );
+
+		// Add donation id to email access url, if it exists.
+		$donation_id = give_clean( filter_input( INPUT_GET, 'donation_id' ) );
+		if ( ! empty( $donation_id ) ) {
+			$access_url = add_query_arg(
+				array(
+					'donation_id' => $donation_id,
+				),
+				$access_url
+			);
+		}
+
+		if ( empty( $tag_args['email_content_type'] ) || 'text/html' === $tag_args['email_content_type'] ) {
 			$email_access_link = sprintf(
 				'<a href="%1$s" target="_blank">%2$s</a>',
 				esc_url( $access_url ),
-				__( 'Access Donation Details &raquo;', 'give' )
+				__( 'View your donation history &raquo;', 'give' )
 			);
 
-		} else{
+		} else {
 
 			$email_access_link = sprintf(
 				'%1$s: %2$s',
-				__( 'Access Donation Details', 'give' ),
+				__( 'View your donation history', 'give' ),
 				esc_url( $access_url )
 			);
 		}
-	}
+	} // End if().
 
 	/**
-	 * Filter the {email_access_link} email template tag output.
+	 * Filter the {donation_history_link} email template tag output.
 	 *
 	 * @since 2.0
 	 *
@@ -1223,3 +1328,372 @@ function __give_20_bc_str_type_email_tag_param( $tag_args ) {
 
 	return $tag_args;
 }
+
+/**
+ * This function converts a list of function arguments and converts
+ * them into a single array.
+ * Note: only for internal logic
+ *
+ * @param string|array $args      Function arguments.
+ * @param array        $func_args Deprecated argument list.
+ *
+ * @since 2.2.1
+ */
+function __give_211_bc_email_template_tag_param( &$args, $func_args = array() ) {
+
+	/**
+	 * This is for backward-compatibility, i.e.; if the parameters are
+	 * still passed as 4 separate arguments instead of 1 single array.
+	 */
+	if ( ! is_array( $args ) ) {
+		$args = array(
+			'tag'      => isset( $func_args[0] ) ? $func_args[0] : '',
+			'desc'     => isset( $func_args[1] ) ? $func_args[1] : '',
+			'func'     => isset( $func_args[2] ) ? $func_args[2] : '',
+			'context'  => isset( $func_args[3] ) ? $func_args[3] : '',
+			'is_admin' => false,
+		);
+	} else {
+
+		// This is for backward compatibility. Use 'desc' instead of 'description'.
+		if ( array_key_exists( 'description', $args ) ) {
+			$args['desc'] = $args['description'];
+		}
+
+		// This is for backward compatibility. Use 'func' instead of 'function'.
+		if ( array_key_exists( 'function', $args ) ) {
+			$args['func'] = $args['function'];
+		}
+
+		$args = wp_parse_args(
+			$args,
+			array(
+				'tag'      => '',
+				'desc'     => '',
+				'func'     => '',
+				'context'  => '',
+				'is_admin' => false,
+			)
+		);
+	}
+}
+
+/**
+ * Email template tag: {reset_password_link}
+ *
+ * @param array $tag_args   Array of arguments for email tags.
+ * @param int   $payment_id Donation ID.
+ *
+ * @since 2.0
+ *
+ * @return array
+ */
+function give_email_tag_reset_password_link( $tag_args, $payment_id ) {
+
+	$reset_password_url = '';
+
+	switch ( true ) {
+		case give_check_variable( $tag_args, 'isset', 0, 'payment_id' ):
+			$payment_id = Give()->seq_donation_number->get_serial_code( $tag_args['payment_id'] );
+			break;
+
+		case give_check_variable( $tag_args, 'isset', 0, 'user_id' ):
+			$reset_password_url = give_get_reset_password_url( $tag_args['user_id'] );
+			break;
+
+		case give_check_variable( $tag_args, 'isset', 0, 'donor_id' ):
+			$reset_password_url = give_get_reset_password_url( Give()->donors->get_column( 'user_id', $tag_args['donor_id'] ) );
+			break;
+	}
+
+	if ( empty( $tag_args['email_content_type'] ) || 'text/html' === $tag_args['email_content_type'] ) {
+		// Generate link, if Email content type is html.
+		$reset_password_link = sprintf(
+			'<a href="%1$s" target="_blank">%2$s</a>',
+			esc_url( $reset_password_url ),
+			__( 'Reset your password &raquo;', 'give' )
+		);
+	} else {
+		$reset_password_link = sprintf(
+			'%1$s: %2$s',
+			__( 'Reset your password', 'give' ),
+			esc_url( $reset_password_url )
+		);
+	}
+
+	/**
+	 * Filter the {reset_password_link} email template tag output.
+	 *
+	 * @param int   $payment_id Donation ID.
+	 * @param array $tag_args   Email Tag arguments.
+	 *
+	 * @since 2.0
+	 */
+	return apply_filters(
+		'give_email_tag_reset_password_link',
+		$reset_password_link,
+		$payment_id,
+		$tag_args
+	);
+}
+
+
+/**
+ * Email template tag: {donor_note}
+ *
+ * @param array $tag_args Array of arguments for email tags.
+ *
+ * @since 2.0
+ *
+ * @return array
+ */
+function give_email_tag_donor_note( $tag_args ) {
+	$donor_note = '';
+
+	if ( array_key_exists( 'note_id', $tag_args ) ) {
+		$note_id = absint( $tag_args['note_id'] );
+
+		if ( ! give_has_upgrade_completed( 'v230_move_donor_note' ) ) {
+			// Backward compatibility.
+			$comment = get_comment( $note_id );
+			$donor_note = $comment instanceof WP_Comment ? $comment->comment_content : '';
+
+		} else {
+
+			$comments = Give_Comment::get( array( 'comment_ID' => $note_id ) );
+			$comment = is_array( $comments ) && count( $comments ) ? current( $comments ) : array();
+
+			$donor_note = $comment instanceof stdClass ? $comment->comment_content : '';
+		}
+	}
+
+	/**
+	 * Filter the {donor_note} email template tag output.
+	 *
+	 * @param string $donor_note Tag output.
+	 * @param array  $tag_args   Email Tag arguments.
+	 *
+	 * @since 2.0
+	 */
+	return apply_filters(
+		'give_email_tag_donor_note',
+		$donor_note,
+		$tag_args
+	);
+}
+
+/**
+ * Get Reset Password URL.
+ *
+ * @param $user_id
+ *
+ * @since 2.0
+ *
+ * @return mixed|string
+ */
+function give_get_reset_password_url( $user_id ) {
+	$reset_password_url = '';
+
+	// Proceed further only, if user_id exists.
+	if ( $user_id ) {
+
+		// Get User Object Details.
+		$user = get_user_by( 'ID', $user_id );
+
+		// Prepare Reset Password URL.
+		$reset_password_url = esc_url(
+			add_query_arg(
+				array(
+					'action' => 'rp',
+					'key'    => get_password_reset_key( $user ),
+					'login'  => $user->user_login,
+				), wp_login_url()
+			)
+		);
+	}
+
+	return $reset_password_url;
+}
+
+/**
+ * Get custom admin email.
+ *
+ * @since 2.2
+ *
+ * @return string
+ */
+function give_email_admin_email() {
+
+	$admin_email = give_get_option( 'contact_admin_email' );
+
+	if ( empty( $admin_email ) ) {
+		give_delete_option( 'contact_admin_email' );
+	}
+
+	return ( ! empty( $admin_email ) )
+		? $admin_email
+		: get_bloginfo( 'admin_email' );
+}
+
+/**
+ * Get site URL.
+ *
+ * @since 2.2
+ *
+ * @return string
+ */
+function give_email_site_url() {
+	return get_bloginfo( 'url' );
+}
+
+
+/**
+ * Get custom offline mailing address.
+ *
+ * @since 2.2
+ *
+ * @return string
+ */
+function give_email_offline_mailing_address() {
+	$offline_address = give_get_option( 'contact_offline_mailing_address' );
+
+	if ( false === $offline_address ) {
+		return sprintf( '&nbsp;&nbsp;&nbsp;&nbsp;<em>%s</em></em><br>&nbsp;&nbsp;&nbsp;&nbsp;<em>111 Not A Real St.</em><br>&nbsp;&nbsp;&nbsp;&nbsp;<em>Anytown, CA 12345 </em><br>', get_bloginfo( 'sitename' ) );
+	}
+
+	return $offline_address;
+}
+
+/**
+ * Returns the donor comment for a particular donation.
+ *
+ * Email template tag: {donor_comment}
+ *
+ * @param array $tag_args Array of arguments for email tags.
+ *
+ * @since 2.3.0
+ *
+ * @return string
+ */
+function give_email_donor_comment( $tag_args ) {
+
+	// Get the payment ID.
+	$payment_id = $tag_args['payment_id'];
+
+	// Get the comment object for the above payment ID and donor ID.
+	$comment = give_get_donor_donation_comment( $payment_id, give_get_payment_donor_id( $payment_id ) );
+
+	if ( is_array( $comment ) && empty( $comment ) ) {
+		return '';
+	}
+
+	// Return comment content.
+	return $comment->comment_content;
+}
+
+/**
+ * This function helps to render meta data with from dynamic meta data email tag.
+ * Note: meta data email tag must be in given format {meta_*}
+ *
+ * @since 2.0.3
+ * @see   https://github.com/impress-org/give/issues/2801#issuecomment-365136602
+ *
+ * @param $content
+ * @param $tag_args
+ *
+ * @return mixed
+ */
+function __give_render_metadata_email_tag( $content, $tag_args ) {
+	preg_match_all( '/{meta_([A-z0-9\-\_\ ]+)}/s', $content, $matches );
+
+	if ( ! empty( $matches[0] ) ) {
+		$search = $replace = array();
+		foreach ( $matches[0] as $index => $meta_tag ) {
+			if ( in_array( $meta_tag, $search ) ) {
+				continue;
+			}
+
+			$search[] = $meta_tag;
+
+			$meta_tag     = str_replace( array( '{', 'meta_', '}' ), '', $meta_tag );
+			$meta_tag_arr = array_map( 'trim', explode( ' ', $meta_tag, 2 ) );
+			$meta_tag     = current( $meta_tag_arr );
+
+			$meta_tag  = str_replace( array( '{', 'meta_', '}' ), '', $meta_tag );
+			$type      = current( explode( '_', $meta_tag, 2 ) );
+			$meta_name = preg_replace( "/^{$type}_/", '', $meta_tag );
+
+			switch ( $type ) {
+				case 'donation':
+					// Bailout.
+					if ( ! isset( $tag_args['payment_id'] ) ) {
+						$replace[] = '';
+						continue 2;
+					}
+
+					$meta_data = give_get_meta( absint( $tag_args['payment_id'] ), $meta_name, true, '' );
+
+					if ( ! isset( $meta_tag_arr[1] ) || ! is_array( $meta_data ) ) {
+						$replace[] = $meta_data;
+					} elseif ( in_array( $meta_tag_arr[1], array_keys( $meta_data ) ) ) {
+						$replace[] = $meta_data[ $meta_tag_arr[1] ];
+					}
+
+					break;
+
+				case 'form':
+					$form_id = isset( $tag_args['form_id'] ) ? absint( $tag_args['form_id'] ) : 0;
+
+					// Bailout.
+					if ( ! $form_id && isset( $tag_args['payment_id'] ) ) {
+						$form_id = give_get_payment_form_id( $tag_args['payment_id'] );
+					}
+
+					$meta_data = give_get_meta( $form_id, $meta_name, true, '' );
+					if ( ! isset( $meta_tag_arr[1] ) || ! is_array( $meta_data ) ) {
+						$replace[] = $meta_data;
+					} elseif ( in_array( $meta_tag_arr[1], array_keys( $meta_data ) ) ) {
+						$replace[] = $meta_data[ $meta_tag_arr[1] ];
+					}
+					break;
+
+				case 'donor':
+					$donor_id = isset( $tag_args['donor_id'] ) ? absint( $tag_args['donor_id'] ) : 0;
+
+					// Bailout.
+					if ( ! $donor_id ) {
+						if ( isset( $tag_args['payment_id'] ) ) {
+							$donor_id = give_get_payment_donor_id( $tag_args['payment_id'] );
+						} elseif ( isset( $tag_args['user_id'] ) ) {
+							$donor_id = Give()->donors->get_column_by( 'id', 'user_id', $tag_args['user_id'] );
+						}
+					}
+
+					$meta_data = Give()->donor_meta->get_meta( $donor_id, $meta_name, true );
+
+					if ( empty( $meta_data ) && in_array( $meta_name, array_keys( Give()->donors->get_columns() ) ) ) {
+						$meta_data = Give()->donors->get_column_by( $meta_name, 'id', $donor_id );
+					}
+
+					if ( ! isset( $meta_tag_arr[1] ) || ! is_array( $meta_data ) ) {
+						$replace[] = $meta_data;
+					} elseif ( in_array( $meta_tag_arr[1], array_keys( $meta_data ) ) ) {
+						$replace[] = $meta_data[ $meta_tag_arr[1] ];
+					}
+
+					break;
+
+				default:
+					$replace[] = end( $search );
+			}
+		}
+
+		if ( ! empty( $search ) && ! empty( $replace ) ) {
+			$content = str_replace( $search, $replace, $content );
+		}
+	}
+
+	return $content;
+}
+
+add_filter( 'give_email_template_tags', '__give_render_metadata_email_tag', 10, 2 );

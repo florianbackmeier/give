@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Admin/Export
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  */
 
@@ -64,6 +64,24 @@ function give_export_earnings() {
 
 add_action( 'give_earnings_export', 'give_export_earnings' );
 
+/**
+ * Exports Give's core settings.
+ *
+ * Give_Core_Settings class.
+ *
+ * @since 1.8.17
+ * @return void
+ */
+function give_core_settings_export() {
+	require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/class-core-settings-export.php';
+
+	$core_settings = new Give_Core_Settings_Export();
+
+	$core_settings->export();
+}
+
+add_action( 'give_core_settings_export', 'give_core_settings_export' );
+
 
 /**
  * Add a hook allowing extensions to register a hook on the batch export process.
@@ -89,34 +107,6 @@ function give_register_batch_exporters() {
 add_action( 'plugins_loaded', 'give_register_batch_exporters' );
 
 /**
- * Register the payments batch exporter
- *
- * @since  1.5
- */
-function give_register_payments_batch_export() {
-	add_action( 'give_batch_export_class_include', 'give_include_payments_batch_processor', 10, 1 );
-}
-
-add_action( 'give_register_batch_exporter', 'give_register_payments_batch_export', 10 );
-
-/**
- * Loads the payments batch process if needed
- *
- * @since  1.5
- *
- * @param  string $class The class being requested to run for the batch export
- *
- * @return void
- */
-function give_include_payments_batch_processor( $class ) {
-
-	if ( 'Give_Batch_Payments_Export' === $class ) {
-		require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/class-batch-export-payments.php';
-	}
-
-}
-
-/**
  * Register the donors batch exporter.
  *
  * @since  1.5.2
@@ -140,34 +130,6 @@ function give_include_donors_batch_processor( $class ) {
 
 	if ( 'Give_Batch_Donors_Export' === $class ) {
 		require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/class-batch-export-donors.php';
-	}
-
-}
-
-/**
- * Register the download products batch exporter
- *
- * @since  1.5
- */
-function give_register_forms_batch_export() {
-	add_action( 'give_batch_export_class_include', 'give_include_forms_batch_processor', 10, 1 );
-}
-
-add_action( 'give_register_batch_exporter', 'give_register_forms_batch_export', 10 );
-
-/**
- * Loads the file downloads batch process if needed
- *
- * @since  1.5
- *
- * @param  string $class The class being requested to run for the batch export
- *
- * @return void
- */
-function give_include_forms_batch_processor( $class ) {
-
-	if ( 'Give_Batch_Forms_Export' === $class ) {
-		require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/class-batch-export-forms.php';
 	}
 
 }

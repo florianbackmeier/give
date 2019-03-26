@@ -5,7 +5,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -21,34 +21,42 @@ if ( ! class_exists( 'Give_Email_Access_Email' ) ) :
 	 * Give_Email_Access_Email
 	 *
 	 * @abstract
-	 * @since       2.0
+	 * @since 2.0
 	 */
 	class Give_Email_Access_Email extends Give_Email_Notification {
 		/**
 		 * Create a class instance.
 		 *
-		 * @access  public
-		 * @since   2.0
+		 * @access public
+		 * @since  2.0
 		 */
 		public function init() {
 			$this->load( array(
 				'id'                           => 'email-access',
 				'label'                        => __( 'Email access', 'give' ),
-				'description'                  => __( 'Email Access Notification will be sent to recipient(s) when want to access their donation history using only email.', 'give' ),
+				'description'                  => __( 'Sent when donors request access to their donation history using only their email as verification. (See Settings > General > Access Control)', 'give' ),
 				'notification_status'          => give_get_option( 'email_access', 'disabled' ),
 				'form_metabox_setting'         => false,
 				'notification_status_editable' => false,
 				'email_tag_context'            => 'donor',
 				'recipient_group_name'         => __( 'Donor', 'give' ),
-				'default_email_subject'        => sprintf( __( 'Your Access Link to %s', 'give' ), get_bloginfo( 'name' ) ),
+				'default_email_subject'        => sprintf( __( 'Please confirm your email for %s', 'give' ), get_bloginfo( 'url' ) ),
 				'default_email_message'        => $this->get_default_email_message(),
+				'default_email_header'         => __( 'Confirm Email', 'give' ),
+				'notices' => array(
+					'non-notification-status-editable' => sprintf(
+						'%1$s <a href="%2$s">%3$s &raquo;</a>',
+						__( 'This notification is automatically toggled based on whether the email access is enabled or not.', 'give' ),
+						esc_url( admin_url('edit.php?post_type=give_forms&page=give-settings&tab=general&section=access-control') ),
+						__( 'Edit Setting', 'give' )
+					)
+				),
 			) );
 
-			add_action( "give_{$this->config['id']}_email_notification", array( $this, 'setup_email_notification' ), 10, 2 );
+			add_filter( "give_{$this->config['id']}_email_notification", array( $this, 'setup_email_notification' ), 10, 2 );
 			add_action( 'give_save_settings_give_settings', array( $this, 'set_notification_status' ), 10, 2 );
 			add_filter( 'give_email_preview_header', array( $this, 'email_preview_header' ), 10, 2 );
 		}
-
 
 		/**
 		 * Get email subject.
@@ -166,7 +174,7 @@ if ( ! class_exists( 'Give_Email_Access_Email' ) ) :
 		 * @return string
 		 */
 		public function get_default_email_message() {
-			$message = __( 'You or someone in your organization requested an access link be sent to this email address. This is a temporary access link for you to view your donation information. Click on the link below to view:', 'give' ) . "\n\n";
+			$message = __( 'Please click the link to access your donation history on {site_url}. If you did not request this email, please contact {admin_email}.', 'give' ) . "\n\n";
 			$message .= '{email_access_link}' . "\n\n";
 			$message .= "\n\n";
 			$message .= __( 'Sincerely,', 'give' ) . "\n";
@@ -180,6 +188,30 @@ if ( ! class_exists( 'Give_Email_Access_Email' ) ) :
 			 * @param string $message
 			 */
 			return apply_filters( "give_{$this->config['id']}_get_default_email_message", $message, $this );
+		}
+
+
+		/**
+		 * Get email header
+		 *
+		 * @since 2.2.1
+		 * @access public
+		 *
+		 * @param null $form_id
+		 *
+		 * @return string
+		 */
+		public function get_email_header( $form_id = null ) {
+			$subject = parent::get_email_header( $form_id );
+
+			/**
+			 * Filter the email header
+			 *
+			 * @since 1.0
+			 */
+			$subject  =  apply_filters( 'give_email_access_token_heading', $subject );
+
+			return  $subject;
 		}
 
 
@@ -207,7 +239,6 @@ if ( ! class_exists( 'Give_Email_Access_Email' ) ) :
 
 			Give()->emails->__set( 'from_name', $from_name );
 			Give()->emails->__set( 'from_email', $from_email );
-			Give()->emails->__set( 'heading', apply_filters( 'give_email_access_token_heading', __( 'Your Access Link', 'give' ) ) );
 
 			/**
 			 * Filters the donation notification email headers.
@@ -222,21 +253,23 @@ if ( ! class_exists( 'Give_Email_Access_Email' ) ) :
 		/**
 		 * Setup email notification.
 		 *
+		 * @param int    $donor_id Donor ID.
+		 * @param string $email    Donor Email.
+		 *
 		 * @since  2.0
 		 * @access public
 		 *
-		 * @param int    $donor_id
-		 * @param string $email
+		 * @return bool
 		 */
 		public function setup_email_notification( $donor_id, $email ) {
-			$donor = Give()->customers->get_by( 'id', $donor_id );
+			$donor = Give()->donors->get_donor_by( 'email', $email );
 			$this->recipient_email = $email;
 
 			// Set email data.
 			$this->setup_email_data();
 
 			// Send email.
-			$this->send_email_notification(
+			return $this->send_email_notification(
 				array(
 					'donor_id' => $donor_id,
 					'user_id'  => $donor->user_id
@@ -264,7 +297,7 @@ if ( ! class_exists( 'Give_Email_Access_Email' ) ) :
 				&& $update_options['email_access'] !== $update_options[ "{$this->config['id']}_notification" ]
 			) {
 				$update_options[ "{$this->config['id']}_notification" ] = $update_options['email_access'];
-				update_option( $option_name, $update_options );
+				update_option( $option_name, $update_options, false );
 			}
 		}
 

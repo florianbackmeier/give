@@ -3,7 +3,7 @@
  * The [give_goal] Shortcode Generator class
  *
  * @package     Give/Admin/Shortcodes
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.3.0
  */
@@ -81,6 +81,11 @@ class Give_Shortcode_Donation_Form_Goal extends Give_Shortcode_Generator {
 					'true'  => esc_html__( 'Show', 'give' ),
 					'false' => esc_html__( 'Hide', 'give' ),
 				),
+			),
+			array(
+				'type' => 'docs_link',
+				'text' => esc_html__( 'Learn more about the Goal Shortcode', 'give' ),
+				'link' => 'http://docs.givewp.com/shortcode-give-goal',
 			),
 		);
 	}

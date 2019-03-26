@@ -3,12 +3,11 @@
  * Plugin Name: Give - Donation Plugin
  * Plugin URI: https://givewp.com
  * Description: The most robust, flexible, and intuitive way to accept donations on WordPress.
- * Author: WordImpress
- * Author URI: https://wordimpress.com
- * Version: 2.0.0
+ * Author: GiveWP
+ * Author URI: https://givewp.com/
+ * Version: 2.5.0
  * Text Domain: give
  * Domain Path: /languages
- * GitHub Plugin URI: https://github.com/WordImpress/Give
  *
  * Give is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,12 +29,12 @@
  *
  * -- The Open Source Initiative
  *
- * Give is a tribute to the spirit and philosophy of Open Source. We at WordImpress gladly embrace the Open Source philosophy both
+ * Give is a tribute to the spirit and philosophy of Open Source. We at GiveWP gladly embrace the Open Source philosophy both
  * in how Give itself was developed, and how we hope to see others build more from our code base.
  *
  * Give would not have been possible without the tireless efforts of WordPress and the surrounding Open Source projects and their talented developers. Thank you all for your contribution to WordPress.
  *
- * - The WordImpress Team
+ * - The GiveWP Team
  */
 
 // Exit if accessed directly.
@@ -80,7 +79,7 @@ if ( ! class_exists( 'Give' ) ) :
 		 * @since  1.0
 		 * @access public
 		 *
-		 * @var    Give_Plugin_Settings object
+		 * @var    Give_Admin_Settings object
 		 */
 		public $give_settings;
 
@@ -95,6 +94,18 @@ if ( ! class_exists( 'Give' ) ) :
 		 * @var    Give_Session object
 		 */
 		public $session;
+
+		/**
+		 * Give Session DB Object
+		 *
+		 * This holds donation data for user's session.
+		 *
+		 * @since  1.0
+		 * @access public
+		 *
+		 * @var    Give_DB_Sessions object
+		 */
+		public $session_db;
 
 		/**
 		 * Give HTML Element Helper Object
@@ -147,6 +158,16 @@ if ( ! class_exists( 'Give' ) ) :
 		public $donor_meta;
 
 		/**
+		 * Give Sequential Donation DB Object
+		 *
+		 * @since  2.1.0
+		 * @access public
+		 *
+		 * @var    Give_DB_Sequential_Ordering object
+		 */
+		public $sequential_donation_db;
+
+		/**
 		 * Give API Object
 		 *
 		 * @since  1.0
@@ -179,7 +200,7 @@ if ( ! class_exists( 'Give' ) ) :
 		/**
 		 * Give_tooltips Object
 		 *
-		 * @since  2.0
+		 * @since  1.8.9
 		 * @access public
 		 *
 		 * @var    Give_Tooltips object
@@ -202,6 +223,20 @@ if ( ! class_exists( 'Give' ) ) :
 		public $logs;
 
 		/**
+		 * Give log db Object
+		 *
+		 * @var    Give_DB_Logs $log_db
+		 */
+		public $log_db;
+
+		/**
+		 * Give log meta db Object
+		 *
+		 * @var    Give_DB_Log_Meta $logmeta_db
+		 */
+		public $logmeta_db;
+
+		/**
 		 * Give payment Object
 		 *
 		 * @var    Give_DB_Payment_Meta $payment_meta
@@ -214,6 +249,34 @@ if ( ! class_exists( 'Give' ) ) :
 		 * @var    Give_DB_Form_Meta $form_meta
 		 */
 		public $form_meta;
+
+		/**
+		 * Give form Object
+		 *
+		 * @var    Give_Async_Process $async_process
+		 */
+		public $async_process;
+
+		/**
+		 * Give scripts Object.
+		 *
+		 * @var Give_Scripts
+		 */
+		public $scripts;
+
+		/**
+		 * Give_Seq_Donation_Number Object.
+		 *
+		 * @var Give_Sequential_Donation_Number
+		 */
+		public $seq_donation_number;
+
+		/**
+		 * Give_Comment Object
+		 *
+		 * @var Give_Comment
+		 */
+		public $comment;
 
 		/**
 		 * Main Give Instance
@@ -248,13 +311,12 @@ if ( ! class_exists( 'Give' ) ) :
 
 			// Bailout: Need minimum php version to load plugin.
 			if ( function_exists( 'phpversion' ) && version_compare( GIVE_REQUIRED_PHP_VERSION, phpversion(), '>' ) ) {
-				add_action( 'admin_notices', array( $this, 'minmum_phpversion_notice' ) );
+				add_action( 'admin_notices', array( $this, 'minimum_phpversion_notice' ) );
 
 				return;
 			}
 
 			$this->setup_constants();
-
 			$this->includes();
 			$this->init_hooks();
 
@@ -267,9 +329,10 @@ if ( ! class_exists( 'Give' ) ) :
 		 * @since  1.8.9
 		 */
 		private function init_hooks() {
-			register_activation_hook( __FILE__, 'give_install' );
+			register_activation_hook( GIVE_PLUGIN_FILE, 'give_install' );
 			add_action( 'plugins_loaded', array( $this, 'init' ), 0 );
 		}
+
 
 		/**
 		 * Init Give when WordPress Initializes.
@@ -288,27 +351,33 @@ if ( ! class_exists( 'Give' ) ) :
 			// Set up localization.
 			$this->load_textdomain();
 
-			$this->roles           = new Give_Roles();
-			$this->api             = new Give_API();
-			$this->give_settings   = new Give_Admin_Settings();
-			$this->session         = new Give_Session();
-			$this->html            = new Give_HTML_Elements();
-			$this->emails          = new Give_Emails();
-			$this->email_tags      = new Give_Email_Template_Tags();
-			$this->donors          = new Give_DB_Donors();
-			$this->donor_meta      = new Give_DB_Donor_Meta();
-			$this->template_loader = new Give_Template_Loader();
-			$this->email_access    = new Give_Email_Access();
-			$this->tooltips        = new Give_Tooltips();
-			$this->notices         = new Give_Notices();
-			$this->logs            = new Give_Logging();
-			$this->payment_meta    = new Give_DB_Payment_Meta();
-			$this->form_meta       = new Give_DB_Form_Meta();
+			$this->roles                  = new Give_Roles();
+			$this->api                    = new Give_API();
+			$this->give_settings          = new Give_Admin_Settings();
+			$this->emails                 = new Give_Emails();
+			$this->email_tags             = new Give_Email_Template_Tags();
+			$this->html                   = Give_HTML_Elements::get_instance();
+			$this->donors                 = new Give_DB_Donors();
+			$this->donor_meta             = new Give_DB_Donor_Meta();
+			$this->tooltips               = new Give_Tooltips();
+			$this->notices                = new Give_Notices();
+			$this->payment_meta           = new Give_DB_Payment_Meta();
+			$this->log_db                 = new Give_DB_Logs();
+			$this->logmeta_db             = new Give_DB_Log_Meta();
+			$this->logs                   = new Give_Logging();
+			$this->form_meta              = new Give_DB_Form_Meta();
+			$this->sequential_donation_db = new Give_DB_Sequential_Ordering();
+			$this->async_process          = new Give_Async_Process();
+			$this->scripts                = new Give_Scripts();
+			$this->seq_donation_number    = Give_Sequential_Donation_Number::get_instance();
+			$this->comment                = Give_Comment::get_instance();
+			$this->session_db             = new Give_DB_Sessions();
+			$this->session                = Give_Session::get_instance();
 
 			/**
 			 * Fire the action after Give core loads.
 			 *
-			 * @param class Give class instance.
+			 * @param Give class instance.
 			 *
 			 * @since 1.8.7
 			 */
@@ -329,7 +398,7 @@ if ( ! class_exists( 'Give' ) ) :
 		 */
 		public function __clone() {
 			// Cloning instances of the class is forbidden.
-			_doing_it_wrong( __FUNCTION__, __( 'Cheatin&#8217; huh?', 'give' ), '1.0' );
+			give_doing_it_wrong( __FUNCTION__, __( 'Cheatin&#8217; huh?', 'give' ), '1.0' );
 		}
 
 		/**
@@ -342,7 +411,7 @@ if ( ! class_exists( 'Give' ) ) :
 		 */
 		public function __wakeup() {
 			// Unserializing instances of the class is forbidden.
-			_doing_it_wrong( __FUNCTION__, __( 'Cheatin&#8217; huh?', 'give' ), '1.0' );
+			give_doing_it_wrong( __FUNCTION__, __( 'Cheatin&#8217; huh?', 'give' ), '1.0' );
 		}
 
 		/**
@@ -355,32 +424,32 @@ if ( ! class_exists( 'Give' ) ) :
 		 */
 		private function setup_constants() {
 
-			// Plugin version
+			// Plugin version.
 			if ( ! defined( 'GIVE_VERSION' ) ) {
-				define( 'GIVE_VERSION', '2.0.0' );
+				define( 'GIVE_VERSION', '2.5.0' );
 			}
 
-			// Plugin Folder Path
-			if ( ! defined( 'GIVE_PLUGIN_DIR' ) ) {
-				define( 'GIVE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-			}
-
-			// Plugin Folder URL
-			if ( ! defined( 'GIVE_PLUGIN_URL' ) ) {
-				define( 'GIVE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-			}
-
-			// Plugin Basename aka: "give/give.php"
-			if ( ! defined( 'GIVE_PLUGIN_BASENAME' ) ) {
-				define( 'GIVE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
-			}
-
-			// Plugin Root File
+			// Plugin Root File.
 			if ( ! defined( 'GIVE_PLUGIN_FILE' ) ) {
 				define( 'GIVE_PLUGIN_FILE', __FILE__ );
 			}
 
-			// Make sure CAL_GREGORIAN is defined
+			// Plugin Folder Path.
+			if ( ! defined( 'GIVE_PLUGIN_DIR' ) ) {
+				define( 'GIVE_PLUGIN_DIR', plugin_dir_path( GIVE_PLUGIN_FILE ) );
+			}
+
+			// Plugin Folder URL.
+			if ( ! defined( 'GIVE_PLUGIN_URL' ) ) {
+				define( 'GIVE_PLUGIN_URL', plugin_dir_url( GIVE_PLUGIN_FILE ) );
+			}
+
+			// Plugin Basename aka: "give/give.php".
+			if ( ! defined( 'GIVE_PLUGIN_BASENAME' ) ) {
+				define( 'GIVE_PLUGIN_BASENAME', plugin_basename( GIVE_PLUGIN_FILE ) );
+			}
+
+			// Make sure CAL_GREGORIAN is defined.
 			if ( ! defined( 'CAL_GREGORIAN' ) ) {
 				define( 'CAL_GREGORIAN', 1 );
 			}
@@ -397,66 +466,101 @@ if ( ! class_exists( 'Give' ) ) :
 		private function includes() {
 			global $give_options;
 
-			require_once GIVE_PLUGIN_DIR . 'includes/admin/class-admin-settings.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/admin/class-give-settings.php';
-			$give_options = give_get_settings();
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-cache-setting.php';
 
-			require_once GIVE_PLUGIN_DIR . 'includes/admin/give-metabox-functions.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/forms/api/class-give-form-api.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-cache.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/post-types.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/scripts.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/ajax-functions.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/actions.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/filters.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/api/class-give-api.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-tooltips.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-notices.php';
 
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-roles.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-template-loader.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-donate-form.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-meta.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-donors.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-donor-meta.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-donor.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-stats.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-session.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-html-elements.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-logging.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-license-handler.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-cron.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-email-access.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-payment-meta.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-form-meta.php';
+			/**
+			 * Load libraries.
+			 */
+			if ( ! class_exists( 'WP_Async_Request' ) ) {
+				include_once( GIVE_PLUGIN_DIR . 'includes/libraries/wp-async-request.php' );
+			}
 
+			if ( ! class_exists( 'WP_Background_Process' ) ) {
+				include_once( GIVE_PLUGIN_DIR . 'includes/libraries/wp-background-process.php' );
+			}
+
+			require_once GIVE_PLUGIN_DIR . 'includes/setting-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/country-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/template-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/misc-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/forms/functions.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/forms/template.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/ajax-functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/currency-functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/price-functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/user-functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/donors/frontend-donor-functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/payments/functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/gateways/functions.php';
+
+			/**
+			 * Load plugin files
+			 */
+			require_once GIVE_PLUGIN_DIR . 'includes/admin/class-admin-settings.php';
+			$give_options = give_get_settings();
+
+			require_once GIVE_PLUGIN_DIR . 'includes/forms/api/class-give-form-api.php';
+
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-cron.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-async-process.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-cache.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/post-types.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/filters.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/api/class-give-api.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/api/class-give-api-v2.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-tooltips.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-notices.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-translation.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-license-handler.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/admin/class-give-html-elements.php';
+
+
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-scripts.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-roles.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-donate-form.php';
+
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-meta.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-comments.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-comments-meta.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-donors.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-donor-meta.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-form-meta.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-sequential-ordering.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-logs.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-logs-meta.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-sessions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-db-payment-meta.php';
+
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-donor.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-stats.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-session.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-logging.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-comment.php';
+
+			require_once GIVE_PLUGIN_DIR . 'includes/class-give-donor-wall-widget.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/forms/widget.php';
+
+
+			require_once GIVE_PLUGIN_DIR . 'includes/forms/template.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/shortcodes.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/formatting.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/price-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/error-tracking.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/process-donation.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/login-register.php';
-			require_once GIVE_PLUGIN_DIR . 'includes/user-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/plugin-compatibility.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/deprecated/deprecated-classes.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/deprecated/deprecated-functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/deprecated/deprecated-actions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/deprecated/deprecated-filters.php';
 
-			require_once GIVE_PLUGIN_DIR . 'includes/payments/functions.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/process-donation.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/payments/backward-compatibility.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/payments/actions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/payments/class-payment-stats.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/payments/class-payments-query.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/payments/class-give-payment.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/payments/class-give-sequential-donation-number.php';
 
-			require_once GIVE_PLUGIN_DIR . 'includes/gateways/functions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/gateways/actions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/gateways/paypal-standard.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/gateways/offline-donations.php';
@@ -469,61 +573,30 @@ if ( ! class_exists( 'Give' ) ) :
 			require_once GIVE_PLUGIN_DIR . 'includes/emails/template.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/emails/actions.php';
 
+			require_once GIVE_PLUGIN_DIR . 'includes/donors/class-give-donors-query.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/donors/class-give-donor-wall.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/donors/class-give-donor-stats.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/donors/backward-compatibility.php';
+			require_once GIVE_PLUGIN_DIR . 'includes/donors/actions.php';
+
+			require_once GIVE_PLUGIN_DIR . 'includes/admin/upgrades/class-give-updates.php';
+
+			require_once GIVE_PLUGIN_DIR . 'blocks/load.php';
+
 			if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				require_once GIVE_PLUGIN_DIR . 'includes/class-give-cli-commands.php';
 			}
 
-			if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+			// Load file for frontend
+			if( $this->is_request('frontend' ) ) {
+				require_once GIVE_PLUGIN_DIR . 'includes/frontend/class-give-frontend.php';
+			}
 
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/admin-footer.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/welcome.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/admin-pages.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/class-api-keys-table.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/class-i18n-module.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/admin-actions.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/admin-filters.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/add-ons.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/plugins.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/dashboard-widgets.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/payments/actions.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/payments/payments-history.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/donors/donors.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/donors/donor-functions.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/donors/donor-actions.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/forms/metabox.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/forms/class-metabox-form-data.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/forms/dashboard-columns.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/export-functions.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/class-export.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/export-actions.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/export/pdf-reports.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/reports/reports.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/reports/class-give-graph.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/reports/graphing.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/logs/logs.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/tools/data/tools-actions.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/abstract-shortcode-generator.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/class-shortcode-button.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-form.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-goal.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-login.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-register.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-profile-editor.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-donation-history.php';
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/shortcodes/shortcode-give-receipt.php';
-
-				require_once GIVE_PLUGIN_DIR . 'includes/admin/upgrades/class-give-updates.php';
-
+			if ( $this->is_request( 'admin' ) || $this->is_request( 'wpcli' ) ) {
+				require_once GIVE_PLUGIN_DIR . 'includes/admin/class-give-admin.php';
 			}// End if().
 
+			require_once GIVE_PLUGIN_DIR . 'includes/actions.php';
 			require_once GIVE_PLUGIN_DIR . 'includes/install.php';
 
 		}
@@ -554,18 +627,18 @@ if ( ! class_exists( 'Give' ) ) :
 
 
 		/**
-		 *  Show minimu phpversion notice
+		 *  Show minimum PHP version notice.
 		 *
 		 * @since  1.8.12
 		 * @access public
 		 */
-		public function minmum_phpversion_notice() {
+		public function minimum_phpversion_notice() {
 			// Bailout.
 			if ( ! is_admin() ) {
 				return;
 			}
 
-			$notice_desc = '<p><strong>' . __( 'Your site could be faster and more secure with a newer PHP version.', 'give' ) . '</strong></p>';
+			$notice_desc  = '<p><strong>' . __( 'Your site could be faster and more secure with a newer PHP version.', 'give' ) . '</strong></p>';
 			$notice_desc .= '<p>' . __( 'Hey, we\'ve noticed that you\'re running an outdated version of PHP. PHP is the programming language that WordPress and Give are built on. The version that is currently used for your site is no longer supported. Newer versions of PHP are both faster and more secure. In fact, your version of PHP no longer receives security updates, which is why we\'re sending you this notice.', 'give' ) . '</p>';
 			$notice_desc .= '<p>' . __( 'Hosts have the ability to update your PHP version, but sometimes they don\'t dare to do that because they\'re afraid they\'ll break your site.', 'give' ) . '</p>';
 			$notice_desc .= '<p><strong>' . __( 'To which version should I update?', 'give' ) . '</strong></p>';
@@ -575,8 +648,31 @@ if ( ! class_exists( 'Give' ) ) :
 
 			echo sprintf(
 				'<div class="notice notice-error">%1$s</div>',
-				$notice_desc
+				wp_kses_post( $notice_desc )
 			);
+		}
+
+		/**
+		 * What type of request is this?
+		 *
+		 * @since 2.4.0
+		 *
+		 * @param  string $type admin, ajax, cron or frontend.
+		 * @return bool
+		 */
+		private function is_request( $type ) {
+			switch ( $type ) {
+				case 'admin':
+					return is_admin();
+				case 'ajax':
+					return defined( 'DOING_AJAX' );
+				case 'cron':
+					return defined( 'DOING_CRON' );
+				case 'frontend':
+					return ( ! is_admin() || defined( 'DOING_AJAX' ) ) && ! defined( 'DOING_CRON' ) && ! defined( 'REST_REQUEST' );
+				case 'wpcli':
+					return defined( 'WP_CLI' ) && WP_CLI;
+			}
 		}
 
 	}

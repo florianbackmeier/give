@@ -3,7 +3,7 @@
 /**
  * Class Give_Tests_Donors
  */
-class Give_Tests_Donors extends Give_Unit_Test_Case {
+class Tests_Give_Donors extends Give_Unit_Test_Case {
 
 	protected $_post_id = null;
 
@@ -61,7 +61,9 @@ class Give_Tests_Donors extends Give_Unit_Test_Case {
 
 		// Generate Donations
 		$this->_user_id = $this->factory->user->create( array(
-			'role' => 'administrator',
+			'role'       => 'administrator',
+			'first_name' => 'Admin',
+			'last_name'  => 'User',
 		) );
 		$user           = get_userdata( $this->_user_id );
 
@@ -208,11 +210,11 @@ class Give_Tests_Donors extends Give_Unit_Test_Case {
 		$payments = array_map( 'absint', explode( ',', $donor->payment_ids ) );
 
 		$expected_purchase_count = $donor->purchase_count;
-		$expected_purchase_value = $donor->purchase_value;
+		$expected_purchase_value = $donor->get_total_donation_amount();
 
 		$donor->attach_payment( $payments[0] );
 		$this->assertEquals( $expected_purchase_count, $donor->purchase_count );
-		$this->assertEquals( $expected_purchase_value, $donor->purchase_value );
+		$this->assertEquals( $expected_purchase_value, $donor->get_total_donation_amount() );
 
 	}
 
@@ -240,13 +242,13 @@ class Give_Tests_Donors extends Give_Unit_Test_Case {
 
 		$donor = new Give_Donor( 'testadmin@domain.com' );
 
-		$this->assertEquals( '20', $donor->purchase_value );
+		$this->assertEquals( '20', $donor->get_total_donation_amount() );
 		$this->assertEquals( '1', $donor->purchase_count );
 
 		$donor->increase_purchase_count();
 		$donor->increase_value( 10 );
 
-		$this->assertEquals( '30', $donor->purchase_value );
+		$this->assertEquals( '30', $donor->get_total_donation_amount() );
 		$this->assertEquals( '2', $donor->purchase_count );
 
 		$this->assertEquals( give_count_donations_of_donor( $this->_user_id ), '2' );
@@ -268,7 +270,7 @@ class Give_Tests_Donors extends Give_Unit_Test_Case {
 		$donor->decrease_donation_count();
 		$donor->decrease_value( 10 );
 
-		$this->assertEquals( $donor->purchase_value, '10' );
+		$this->assertEquals( $donor->get_total_donation_amount(), '10' );
 		$this->assertEquals( $donor->purchase_count, '0' );
 
 		$this->assertEquals( give_count_donations_of_donor( $this->_user_id ), '0' );
@@ -281,7 +283,7 @@ class Give_Tests_Donors extends Give_Unit_Test_Case {
 		$donor->decrease_donation_count( 100 );
 		$donor->decrease_value( 100000 );
 
-		$this->assertEquals( intval( $donor->purchase_value ), intval( '0' ) );
+		$this->assertEquals( intval( $donor->get_total_donation_amount() ), intval( '0' ) );
 		$this->assertEquals( intval( $donor->purchase_count ), intval( '0' ) );
 
 	}
@@ -384,9 +386,218 @@ class Give_Tests_Donors extends Give_Unit_Test_Case {
 
 	/**
 	 * Test total donor count.
+	 *
+	 * @cover Give_Donor::add_address
+	 * @cover Give_Donor::does_address_exist
+	 * @cover Give_Donor::setup_address
+	 */
+	public function test_add_address() {
+		$donor = new Give_Donor( 'testadmin@domain.com' );
+
+		$address1 = array(
+			'line1'   => 'No. 114',
+			'line2'   => '8th block yamuna, 4th phase yelahanka',
+			'city'    => 'Bangalore',
+			'state'   => 'KA',
+			'country' => 'IN',
+			'zip'     => '560064',
+		);
+
+		$address2 = array(
+			'line1'   => 'No. 118',
+			'line2'   => '8th block yamuna, 4th phase yelahanka',
+			'city'    => 'Bangalore',
+			'state'   => 'KA',
+			'country' => 'IN',
+			'zip'     => '560064',
+		);
+
+		$address3 = array(
+			'line1'   => 'No. 118',
+			'line2'   => '8th block yamuna, 4th phase yelahanka',
+			'city'    => 'Bangalore',
+			'state'   => 'KA',
+			'country' => 'IN',
+			'zip'     => '560064',
+		);
+
+		$donor->add_address( 'billing[]', $address1 );
+		$donor->add_address( 'billing[]', $address2 );
+		$donor->add_address( 'billing[]', $address3 );
+
+		// Test.
+		$this->assertEquals( 1, count( $donor->address ) );
+		$this->assertEquals( 2, count( $donor->address['billing'] ) );
+
+		$donor->add_address( 'personal', $address3 );
+
+		// Test.
+		$this->assertEquals( 2, count( $donor->address ) );
+		$this->assertEquals( 2, count( $donor->address['billing'] ) );
+	}
+
+	/**
+	 * Test get donor address function.
+	 *
+	 * @since 2.1.3
+	 *
+	 * @cover Give_Donor::get_donor_address
+	 */
+	public function test_get_donor_address() {
+		// Create a donor.
+		$donor = new Give_Donor();
+		$args  = array(
+			'name'  => 'Give Donor',
+			'email' => 'givedonoraddress@domain.com',
+		);
+		$donor->create( $args );
+
+		$address0 = array(
+			'line1'   => '',
+			'line2'   => '',
+			'city'    => '',
+			'state'   => '',
+			'country' => '',
+			'zip'     => '',
+		);
+
+		$address1 = array(
+			'line1'   => 'No. 114',
+			'line2'   => '8th block yamuna, 4th phase yelahanka',
+			'city'    => 'Bangalore',
+			'state'   => 'KA',
+			'country' => 'IN',
+			'zip'     => '560064',
+		);
+
+		$address2 = array(
+			'line1'   => 'No. 118',
+			'line2'   => '8th block yamuna, 4th phase yelahanka',
+			'city'    => 'Bangalore',
+			'state'   => 'KA',
+			'country' => 'IN',
+			'zip'     => '560064',
+		);
+
+		$address3 = array(
+			'line1'   => 'No. 122',
+			'line2'   => '8th block yamuna, 4th phase yelahanka',
+			'city'    => 'Bangalore',
+			'state'   => 'KA',
+			'country' => 'IN',
+			'zip'     => '560064',
+		);
+
+		// check if donor address fields is empty or not.
+		$address_match = array_diff( $donor->get_donor_address(), $address0 );
+		$this->assertEquals( true, empty( $address_match ) );
+
+		// check for billing address.
+		$donor->add_address( 'billing[]', $address1 );
+		$donor->add_address( 'billing[]', $address2 );
+		$address_match = array_diff( $donor->get_donor_address(), $address1 );
+		$this->assertEquals( true, empty( $address_match ) );
+
+		// check for personal address.
+		$donor->add_address( 'personal[]', $address3 );
+		$address_match = array_diff( $donor->get_donor_address( array( 'address_type' => 'personal' ) ), $address3 );
+		$this->assertEquals( true, empty( $address_match ) );
+	}
+
+	/**
+	 * Test total donor count.
 	 */
 	public function test_count_total_donors() {
 		$donor_count = give_count_total_donors();
-		$this->assertEquals( 1, $donor_count );
+		$this->assertEquals( 2, $donor_count );
+	}
+
+	/**
+	 * Tests get_first_name function of Give_Donor class.
+	 *
+	 * @since 2.0
+	 *
+	 * @cover Give_Donor::get_first_name()
+	 */
+	public function test_get_first_name() {
+
+		// Create a donor.
+		$donor = new Give_Donor();
+		$args = array(
+			'name'  => 'Admin User',
+			'email' => 'testadmin@domain.com',
+		);
+		$donor->create( $args );
+		$first_name = $donor->get_first_name();
+		$this->assertEquals( 'Admin', $first_name );
+
+	}
+
+	/**
+	 * Tests get_last_name function of Give_Donor class.
+	 *
+	 * @since 2.0
+	 *
+	 * @cover Give_Donor::get_last_name()
+	 */
+	public function test_get_last_name() {
+
+		$donor = new Give_Donor();
+		$args = array(
+			'name'  => 'Admin User',
+			'email' => 'testadmin@domain.com',
+		);
+		$donor->create( $args );
+		$last_name = $donor->get_last_name();
+		$this->assertEquals( 'User', $last_name );
+
+	}
+
+	/**
+	 * Tests split_donor_name function of Give_Donor class.
+	 *
+	 * @since 2.0
+	 *
+	 * @cover Give_Donor::split_donor_name()
+	 */
+	public function test_split_donor_name() {
+
+		$donor = new Give_Donor();
+		$args = array(
+			'name'  => 'Admin User',
+			'email' => 'testadmin@domain.com',
+		);
+		$donor->create( $args );
+
+		$donor_name_split = $donor->split_donor_name( $donor->id );
+
+		/**
+		 * Check 1 - Check for type object.
+		 *
+		 * @since 2.0
+		 */
+		$this->assertInternalType( 'object', $donor_name_split );
+
+		/**
+		 * Check 2 - Check for existence of attribute first_name in object.
+		 *
+		 * @since 2.0
+		 */
+		$this->assertObjectHasAttribute( 'first_name', $donor_name_split );
+
+		/**
+		 * Check 3 - Check that first_name attribute of object is not empty.
+		 *
+		 * @since 2.0
+		 */
+		$this->assertNotEmpty( $donor_name_split->first_name );
+
+		/**
+		 * Check 4 - Check for existence of attribute last_name in object.
+		 *
+		 * @since 2.0
+		 */
+		$this->assertObjectHasAttribute( 'last_name', $donor_name_split );
+
 	}
 }

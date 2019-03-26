@@ -45,7 +45,7 @@ class Tests_Payments extends Give_Unit_Test_Case {
 		$this->_transaction_id = 'FIR3SID3';
 
 		give_set_payment_transaction_id( $payment_id, $this->_transaction_id );
-		give_insert_payment_note( $payment_id, sprintf( __( 'PayPal Transaction ID: %s', 'easy-digital-downloads' ), $this->_transaction_id ) );
+		give_insert_payment_note( $payment_id, sprintf( __( 'PayPal Transaction ID: %s', 'give' ), $this->_transaction_id ) );
 
 		// Make sure we're working off a clean object caching in WP Core.
 		// Prevents some payment_meta from not being present.
@@ -283,33 +283,83 @@ class Tests_Payments extends Give_Unit_Test_Case {
 	 * Test getting the payment number.
 	 */
 	public function test_get_payment_number() {
-
-		$this->markTestSkipped( 'Awaiting sequential ordering enhancement.' );
-
 		// Reset all items and start from scratch.
 		Give_Helper_Payment::delete_payment( $this->_payment_id );
 		wp_cache_flush();
 
-		$give_options                      = give_get_settings();
-		$give_options['enable_sequential'] = 1;
+
+		/**
+		 * Case 1: enable sequential donation
+		 */
+		$payment_id = Give_Helper_Payment::create_simple_payment();
+
+		$payment = new Give_Payment( $payment_id );
+		$this->assertEquals( Give()->seq_donation_number->get_serial_number( $payment_id ), $payment->number );
+
+		/**
+		 * Case 2: enable sequential donation with prefix and suffix
+		 */
+		give_update_option( 'sequential-ordering_number_prefix', 'Give-' );
+		give_update_option( 'sequential-ordering_number_suffix', '-WP' );
 
 		$payment_id = Give_Helper_Payment::create_simple_payment();
 
-		$this->assertInternalType( 'int', give_get_next_payment_number() );
-		$this->assertInternalType( 'string', give_format_payment_number( give_get_next_payment_number() ) );
-		$this->assertEquals( 'Give-2', give_format_payment_number( give_get_next_payment_number() ) );
+		$payment = new Give_Payment( $payment_id );
+		$this->assertEquals( Give()->seq_donation_number->get_serial_code( $payment_id ), $payment->number );
 
-		$payment             = new Give_Payment( $payment_id );
-		$last_payment_number = give_remove_payment_prefix_postfix( $payment->number );
-		$this->assertEquals( 1, $last_payment_number );
-		$this->assertEquals( 'Give-1', $payment->number );
-		$this->assertEquals( 2, give_get_next_payment_number() );
+		// Reset option.
+		give_update_option( 'sequential-ordering_number_prefix', '' );
+		give_update_option( 'sequential-ordering_number_suffix', '' );
 
-		// Now disable sequential and ensure values come back as expected
-		$give_options['enable_sequential'] = 0;
+		/**
+		 * Case 3: enable sequential donation with prefix and suffix with date tag
+		 */
+		give_update_option( 'sequential-ordering_number_prefix', 'Give-' );
+		give_update_option( 'sequential-ordering_number_suffix', '-WP-{YYYY}-{MM}-{DD}' );
+
+		$payment_id = Give_Helper_Payment::create_simple_payment();
+
+		$payment      = new Give_Payment( $payment_id );
+		$current_time = current_time( 'timestamp' );
+		$this->assertEquals(
+			'Give-' . Give()->seq_donation_number->get_serial_number( $payment_id ) . '-WP-' . date( 'Y', $current_time ) . '-' . date( 'm', $current_time ) . '-' . date( 'd', $current_time ),
+			$payment->number
+		);
+
+		// Reset option.
+		give_update_option( 'sequential-ordering_number_prefix', '' );
+		give_update_option( 'sequential-ordering_number_suffix', '' );
+
+		/**
+		 * Case 3: enable sequential donation with prefix, suffix and custom starting number
+		 */
+		give_update_option( 'sequential-ordering_number_prefix', 'Give-' );
+		give_update_option( 'sequential-ordering_number_suffix', '-WP' );
+		update_option( '_give_reset_sequential_number', 1 );
+		give_update_option( 'sequential-ordering_number', 400 );
+
+		$payment_id = Give_Helper_Payment::create_simple_payment();
 
 		$payment = new Give_Payment( $payment_id );
+		$this->assertEquals( Give()->seq_donation_number->get_serial_code( $payment_id ), $payment->number );
+
+		// Reset option.
+		give_update_option( 'sequential-ordering_number_prefix', '' );
+		give_update_option( 'sequential-ordering_number_suffix', '' );
+		give_update_option( 'sequential-ordering_number', 400 );
+
+
+		/**
+		 * Case 2: disable sequential donation.
+		 */
+		give_update_option( 'sequential-ordering_status', 'disabled' );
+
+		// Now disable sequential and ensure values come back as expected
+		$payment_id = Give_Helper_Payment::create_simple_payment();
+		$payment    = new Give_Payment( $payment_id );
 		$this->assertEquals( $payment_id, $payment->number );
+
+		give_update_option( 'sequential-ordering_status', 'enabled' );
 	}
 
 	/**
@@ -343,7 +393,7 @@ class Tests_Payments extends Give_Unit_Test_Case {
 		// Try and retrieve the transaction ID
 		$this->assertEquals( $this->_transaction_id, $payment->get_meta( '_give_payment_transaction_id' ) );
 
-		$this->assertEquals( $payment->email, $payment->get_meta( '_give_payment_user_email' ) );
+		$this->assertEquals( $payment->email, $payment->get_meta( '_give_payment_donor_email' ) );
 
 	}
 
@@ -361,7 +411,7 @@ class Tests_Payments extends Give_Unit_Test_Case {
 		$this->assertEquals( $this->_transaction_id, give_get_payment_meta( $this->_payment_id, '_give_payment_transaction_id' ) );
 
 		$user_info = give_get_payment_meta_user_info( $this->_payment_id );
-		$this->assertEquals( $user_info['email'], give_get_payment_meta( $this->_payment_id, '_give_payment_user_email' ) );
+		$this->assertEquals( $user_info['email'], give_get_payment_meta( $this->_payment_id, '_give_payment_donor_email' ) );
 
 	}
 
@@ -408,12 +458,12 @@ class Tests_Payments extends Give_Unit_Test_Case {
 
 		$this->assertEquals( $new_value, give_get_payment_meta( $this->_payment_id, '_give_payment_purchase_key' ) );
 
-		$ret = give_update_payment_meta( $this->_payment_id, '_give_payment_user_email', 'test@test.com' );
+		$ret = give_update_payment_meta( $this->_payment_id, '_give_payment_donor_email', 'test@test.com' );
 
 		$this->assertTrue( $ret );
 
 		$user_info = give_get_payment_meta_user_info( $this->_payment_id );
-		$this->assertEquals( 'test@test.com', give_get_payment_meta( $this->_payment_id, '_give_payment_user_email' ) );
+		$this->assertEquals( 'test@test.com', give_get_payment_meta( $this->_payment_id, '_give_payment_donor_email' ) );
 
 	}
 
@@ -442,7 +492,7 @@ class Tests_Payments extends Give_Unit_Test_Case {
 		$this->assertEquals( 'USD', $payment->currency );
 		$this->assertEquals( 'US Dollars', give_get_payment_currency( $payment->ID ) );
 
-		$total1 = give_currency_filter( give_format_amount( $payment->total ), $payment->currency );
+		$total1 = give_currency_filter( give_format_amount( $payment->total ), array( 'currency_code' => $payment->currency ) );
 		$total2 = give_currency_filter( give_format_amount( $payment->total ) );
 
 		$this->assertEquals( '&#36;20.00', $total1 );
@@ -458,11 +508,23 @@ class Tests_Payments extends Give_Unit_Test_Case {
 		$this->assertEquals( 'USD', give_get_payment_currency_code( $this->_payment_id ) );
 		$this->assertEquals( 'US Dollars', give_get_payment_currency( $this->_payment_id ) );
 
-		$total1 = give_currency_filter( give_format_amount( give_get_payment_amount( $this->_payment_id ) ), give_get_payment_currency_code( $this->_payment_id ) );
-		$total2 = give_currency_filter( give_format_amount( give_get_payment_amount( $this->_payment_id ) ) );
+		$total1 = give_donation_amount( $this->_payment_id, true );
+		$total2 = give_donation_amount( $this->_payment_id, true );
+		$total3 = give_donation_amount( $this->_payment_id, array(
+			'currency' => true,
+			'amount'   => true,
+			'type'     => 'stats'
+		) );
+		$total4 = give_donation_amount( $this->_payment_id, array(
+			'currency' => true,
+			'amount'   => true,
+			'type'     => 'stats'
+		) );
 
 		$this->assertEquals( '&#36;20.00', $total1 );
 		$this->assertEquals( '&#36;20.00', $total2 );
+		$this->assertEquals( '&#36;20.00', $total3 );
+		$this->assertEquals( '&#36;20.00', $total4 );
 
 	}
 
@@ -497,4 +559,151 @@ class Tests_Payments extends Give_Unit_Test_Case {
 		$this->assertEquals( $this->_payment_id, $payments[1]->ID );
 	}
 
+	/**
+	 * @covers ::give_get_price_id
+	 */
+	public function test_give_get_price_id() {
+		$form = Give_Helper_Form::create_multilevel_form(
+			array(
+				'meta' => array(
+					'_give_set_price'             => '0.00', //Multi-level Pricing; not set
+					'_give_display_style'         => 'buttons',
+					'_give_donation_levels'       => array(
+						array(
+							'_give_id'     => array( 'level_id' => '1' ),
+							'_give_amount' => '10',
+							'_give_text'   => 'Small Gift',
+						),
+						array(
+							'_give_id'      => array( 'level_id' => '2' ),
+							'_give_amount'  => '25',
+							'_give_text'    => 'Mid-size Gift',
+							'_give_default' => 'default',
+						),
+						array(
+							'_give_id'     => array( 'level_id' => '3' ),
+							'_give_amount' => '50',
+							'_give_text'   => 'Large Gift',
+						),
+						array(
+							'_give_id'     => array( 'level_id' => '4' ),
+							'_give_amount' => '100',
+							'_give_text'   => 'Big Gift',
+						),
+					),
+					'_give_custom_amount'         => 'enabled',
+					'_give_custom_amount_minimum' => give_maybe_sanitize_amount( 1 ),
+				),
+			)
+		);
+
+		$amount_with_levels = array(
+			1        => give_maybe_sanitize_amount( 10 ),
+			2        => give_maybe_sanitize_amount( 25 ),
+			3        => give_maybe_sanitize_amount( 50 ),
+			4        => give_maybe_sanitize_amount( 100 ),
+			'custom' => give_maybe_sanitize_amount( 1.22 ),
+		);
+
+		foreach ( $amount_with_levels as $level_id => $amount ) {
+			$this->assertEquals( $level_id, give_get_price_id( $form->ID, $amount ) );
+		}
+	}
+
+	/**
+	 * Test for give_donation_amount fn
+	 *
+	 * @since        1.8.17
+	 * @access       public
+	 *
+	 * @param bool|array $format_args
+	 * @param string     $expected1
+	 * @param string     $expected2
+	 *
+	 * @dataProvider give_donation_amount_provider
+	 */
+	public function test_give_donation_amount( $format_args, $expected1, $expected2 ) {
+		$donation = Give_Helper_Payment::create_simple_payment( array( 'donation' => array( 'price' => 2873892713.34468 ) ) );
+
+		$donation = new Give_Payment( $donation );
+
+		$this->assertSame( $expected1, give_donation_amount( $donation->ID, $format_args ) );
+
+		// Change payment data.
+		$donation->currency = 'INR';
+		$donation->save();
+
+		if ( is_array( $format_args ) && ( isset( $format_args['currency'] ) && is_array( $format_args['currency'] ) ) ) {
+			$format_args['currency']['currency_code'] = 'INR';
+		}
+
+		if ( is_array( $format_args ) && ( isset( $format_args['amount'] ) && is_array( $format_args['amount'] ) ) ) {
+			$format_args['amount']['currency'] = 'INR';
+		}
+
+		$this->assertSame( $expected2, give_donation_amount( $donation->ID, $format_args ) );
+
+	}
+
+
+	/**
+	 * Data provider for test_give_donation_amount
+	 *
+	 * @since  1.8.17
+	 * @access public
+	 * @return array
+	 */
+	public function give_donation_amount_provider() {
+		$global_currency_code = give_get_option( 'currency' );
+
+		return array(
+			array( false, '2873892713.34', '2873892713.34' ),
+			array( true, '&#36;2,873,892,713.34', '&#8377;2,87,38,92,713.34' ),
+			array( array( 'currency' => true, 'amount' => false ), '&#36;2873892713.34', '&#8377;2873892713.34' ),
+			array( array( 'currency' => false, 'amount' => true ), '2,873,892,713.34', '2,87,38,92,713.34' ),
+			array( array( 'currency' => true, 'amount' => true ), '&#36;2,873,892,713.34', '&#8377;2,87,38,92,713.34' ),
+			array( array( 'currency' => false, 'amount' => false ), '2873892713.34', '2873892713.34' ),
+
+			array( array(), '2873892713.34', '2873892713.34' ),
+
+			array(
+				array(
+					'currency' => array(
+						'decode_currency' => true,
+						'currency_code'   => $global_currency_code,
+					),
+					'amount'   => false,
+				),
+				'$2873892713.34',
+				'₹2873892713.34',
+			),
+
+			array(
+				array(
+					'currency' => false,
+					'amount'   => array(
+						'decimal'  => false,
+						'currency' => $global_currency_code,
+					),
+				),
+				'2,873,892,713',
+				'2,87,38,92,713',
+			),
+
+			array(
+				array(
+					'currency' => array(
+						'decode_currency' => true,
+						'currency_code'   => $global_currency_code,
+					),
+					'amount'   => array(
+						'decimal'  => false,
+						'currency' => $global_currency_code,
+					),
+				),
+				'$2,873,892,713',
+				'₹2,87,38,92,713',
+			),
+		);
+	}
 }

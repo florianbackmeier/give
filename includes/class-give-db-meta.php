@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_DB_Meta
- * @copyright   Copyright (c) 2017, WordImpress
+ * @copyright   Copyright (c) 2017, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -49,6 +49,14 @@ class Give_DB_Meta extends Give_DB {
 	 */
 	protected $check = false;
 
+	/**
+	 * Flag to check whether meta function called by WP filter or directly
+	 *
+	 * @since  2.0
+	 * @access protected
+	 */
+	private $is_filter_callback = false;
+
 
 	/**
 	 * Meta supports.
@@ -64,6 +72,8 @@ class Give_DB_Meta extends Give_DB {
 		'delete_post_metadata',
 		'posts_where',
 		'posts_join',
+		'posts_groupby',
+		'posts_orderby',
 	);
 
 	/**
@@ -72,6 +82,8 @@ class Give_DB_Meta extends Give_DB {
 	 * @since 2.0
 	 */
 	function __construct() {
+		parent::__construct();
+
 		// Bailout.
 		if ( empty( $this->supports ) || ! $this->is_custom_meta_table_active() ) {
 			return;
@@ -82,7 +94,7 @@ class Give_DB_Meta extends Give_DB {
 		}
 
 		if ( in_array( 'get_post_metadata', $this->supports ) ) {
-			add_filter( 'get_post_metadata', array( $this, '__get_meta' ), 0, 4 );
+			add_filter( 'get_post_metadata', array( $this, '__get_meta' ), 10, 4 );
 		}
 
 		if ( in_array( 'update_post_metadata', $this->supports ) ) {
@@ -94,11 +106,19 @@ class Give_DB_Meta extends Give_DB {
 		}
 
 		if ( in_array( 'posts_where', $this->supports ) ) {
-			add_filter( 'posts_where', array( $this, '__posts_where' ), 10, 2 );
+			add_filter( 'posts_where', array( $this, '__rename_meta_table_name_in_query' ), 99999, 2 );
 		}
 
 		if ( in_array( 'posts_join', $this->supports ) ) {
-			add_filter( 'posts_join', array( $this, '__posts_join' ), 10, 2 );
+			add_filter( 'posts_join', array( $this, '__rename_meta_table_name_in_query' ), 99999, 2 );
+		}
+
+		if ( in_array( 'posts_groupby', $this->supports ) ) {
+			add_filter( 'posts_groupby', array( $this, '__rename_meta_table_name_in_query' ), 99999, 2 );
+		}
+
+		if ( in_array( 'posts_orderby', $this->supports ) ) {
+			add_filter( 'posts_orderby', array( $this, '__rename_meta_table_name_in_query' ), 99999, 2 );
 		}
 	}
 
@@ -113,9 +133,14 @@ class Give_DB_Meta extends Give_DB {
 	 * @param   string $meta_key The meta key to retrieve.
 	 * @param   bool   $single   Whether to return a single value.
 	 *
-	 * @return  mixed                 Will be an array if $single is false. Will be value of meta data field if $single is true.
+	 * @return  mixed                 Will be an array if $single is false. Will be value of meta data field if $single
+	 *                                is true.
 	 */
 	public function get_meta( $id = 0, $meta_key = '', $single = false ) {
+		if ( ! $this->is_filter_callback ) {
+			return get_metadata( $this->meta_type, $id, $meta_key, $single );
+		}
+
 		$id = $this->sanitize_id( $id );
 
 		// Bailout.
@@ -135,6 +160,8 @@ class Give_DB_Meta extends Give_DB {
 			$value = get_metadata( $this->meta_type, $id, $meta_key, $single );
 		}
 
+		$this->is_filter_callback = false;
+
 		return $value;
 	}
 
@@ -152,17 +179,27 @@ class Give_DB_Meta extends Give_DB {
 	 * @param   mixed  $meta_value Metadata value.
 	 * @param   bool   $unique     Optional, default is false. Whether the same key should not be added.
 	 *
-	 * @return  bool                  False for failure. True for success.
+	 * @return  int|bool                  False for failure. True for success.
 	 */
-	public function add_meta( $id = 0, $meta_key = '', $meta_value, $unique = false ) {
-		$id = $this->sanitize_id( $id );
+	public function add_meta( $id, $meta_key, $meta_value, $unique = false ) {
+		if ( $this->is_filter_callback ) {
+			$id = $this->sanitize_id( $id );
 
-		// Bailout.
-		if ( ! $this->is_valid_post_type( $id ) ) {
-			return $this->check;
+			// Bailout.
+			if ( ! $this->is_valid_post_type( $id ) ) {
+				return $this->check;
+			}
 		}
 
-		return add_metadata( $this->meta_type, $id, $meta_key, $meta_value, $unique );
+		$meta_id = add_metadata( $this->meta_type, $id, $meta_key, $meta_value, $unique );
+
+		if ( $meta_id ) {
+			$this->delete_cache( $id );
+		}
+
+		$this->is_filter_callback = false;
+
+		return $meta_id;
 	}
 
 	/**
@@ -183,17 +220,27 @@ class Give_DB_Meta extends Give_DB {
 	 * @param   mixed  $meta_value Metadata value.
 	 * @param   mixed  $prev_value Optional. Previous value to check before removing.
 	 *
-	 * @return  bool                  False on failure, true if success.
+	 * @return  int|bool                  False on failure, true if success.
 	 */
-	public function update_meta( $id = 0, $meta_key = '', $meta_value, $prev_value = '' ) {
-		$id = $this->sanitize_id( $id );
+	public function update_meta( $id, $meta_key, $meta_value, $prev_value = '' ) {
+		if ( $this->is_filter_callback ) {
+			$id = $this->sanitize_id( $id );
 
-		// Bailout.
-		if ( ! $this->is_valid_post_type( $id ) ) {
-			return $this->check;
+			// Bailout.
+			if ( ! $this->is_valid_post_type( $id ) ) {
+				return $this->check;
+			}
 		}
 
-		return update_metadata( $this->meta_type, $id, $meta_key, $meta_value, $prev_value );
+		$meta_id = update_metadata( $this->meta_type, $id, $meta_key, $meta_value, $prev_value );
+
+		if ( $meta_id ) {
+			$this->delete_cache( $id );
+		}
+
+		$this->is_filter_callback = false;
+
+		return $meta_id;
 	}
 
 	/**
@@ -214,133 +261,129 @@ class Give_DB_Meta extends Give_DB {
 	 * @return  bool                  False for failure. True for success.
 	 */
 	public function delete_meta( $id = 0, $meta_key = '', $meta_value = '', $delete_all = '' ) {
-		$id = $this->sanitize_id( $id );
+		if ( $this->is_filter_callback ) {
+			$id = $this->sanitize_id( $id );
 
-		// Bailout.
-		if ( ! $this->is_valid_post_type( $id ) ) {
-			return $this->check;
+			// Bailout.
+			if ( ! $this->is_valid_post_type( $id ) ) {
+				return $this->check;
+			}
 		}
 
-		return delete_metadata( $this->meta_type, $id, $meta_key, $meta_value, $delete_all );
+
+		$is_meta_deleted = delete_metadata( $this->meta_type, $id, $meta_key, $meta_value, $delete_all );
+
+		if ( $is_meta_deleted ) {
+			$this->delete_cache( $id );
+		}
+
+		$this->is_filter_callback = false;
+
+		return $is_meta_deleted;
 	}
 
 	/**
-	 * Filter where clause of every query for new payment meta table
+	 * Rename query clauses of every query for new meta table
 	 *
 	 * @since  2.0
 	 * @access public
 	 *
-	 * @param string   $where
+	 * @param string   $clause
 	 * @param WP_Query $wp_query
 	 *
 	 * @return string
 	 */
-	public function __posts_where( $where, $wp_query ) {
-		global $wpdb;
-
-		$is_payment_post_type = false;
-
-		// Check if it is payment query.
-		if ( ! empty( $wp_query->query['post_type'] ) ) {
-			if ( is_string( $wp_query->query['post_type'] ) && $this->post_type === $wp_query->query['post_type'] ) {
-				$is_payment_post_type = true;
-			} elseif ( is_array( $wp_query->query['post_type'] ) && in_array( $this->post_type, $wp_query->query['post_type'] ) ) {
-				$is_payment_post_type = true;
-			}
-		}
-
+	public function __rename_meta_table_name_in_query( $clause, $wp_query ) {
 		// Add new table to sql query.
-		if ( $is_payment_post_type && ! empty( $wp_query->meta_query->queries ) ) {
-			$where = str_replace( $wpdb->postmeta, $this->table_name, $where );
+		if ( $this->is_post_type_query( $wp_query ) && ! empty( $wp_query->meta_query->queries ) ) {
+			$clause = $this->__rename_meta_table_name( $clause, current_filter() );
 		}
 
-		return $where;
+		return $clause;
 	}
 
 
 	/**
-	 * Filter join clause of every query for new payment meta table
+	 * Rename query clauses for new meta table
 	 *
-	 * @since  2.0
-	 * @access public
-	 *
-	 * @param string   $join
-	 * @param WP_Query $wp_query
-	 *
-	 * @return string
-	 */
-	public function __posts_join( $join, $wp_query ) {
-		global $wpdb;
-
-		$is_payment_post_type = false;
-
-		// Check if it is payment query.
-		if ( ! empty( $wp_query->query['post_type'] ) ) {
-			if ( is_string( $wp_query->query['post_type'] ) && $this->post_type === $wp_query->query['post_type'] ) {
-				$is_payment_post_type = true;
-			} elseif ( is_array( $wp_query->query['post_type'] ) && in_array( $this->post_type, $wp_query->query['post_type'] ) ) {
-				$is_payment_post_type = true;
-			}
-		}
-
-		// Add new table to sql query.
-		if ( $is_payment_post_type && ! empty( $wp_query->meta_query->queries ) ) {
-			$join = str_replace( "{$wpdb->postmeta}.post_id", "{$this->table_name}.payment_id", $join );
-			$join = str_replace( $wpdb->postmeta, $this->table_name, $join );
-		}
-
-		return $join;
-	}
-
-	/**
-	 * Add support for hidden functions.
-	 *
-	 * @since  2.0
-	 * @access public
-	 *
-	 * @param $name
-	 * @param $arguments
+	 * @param $clause
+	 * @param $filter
 	 *
 	 * @return mixed
 	 */
-	public function __call( $name, $arguments ) {
-		switch ( $name ) {
-			case '__add_meta':
-				$this->check = $arguments[0];
-				$id          = $arguments[1];
-				$meta_key    = $arguments[2];
-				$meta_value  = $arguments[3];
-				$unique      = $arguments[4];
+	public function __rename_meta_table_name( $clause, $filter ) {
+		global $wpdb;
 
-				return $this->add_meta( $id, $meta_key, $meta_value, $unique );
+		$clause = str_replace( "{$wpdb->postmeta}.post_id", "{$this->table_name}.{$this->meta_type}_id", $clause );
+		$clause = str_replace( $wpdb->postmeta, $this->table_name, $clause );
 
-			case '__get_meta':
-				$this->check = $arguments[0];
-				$id          = $arguments[1];
-				$meta_key    = $arguments[2];
-				$single      = $arguments[3];
+		switch ( $filter ) {
+			case 'posts_join':
+				$joins = array( 'INNER JOIN', 'LEFT JOIN' );
 
-				$this->raw_result = true;
+				foreach ( $joins as $join ) {
+					if ( false !== strpos( $clause, $join ) ) {
+						$clause = explode( $join, $clause );
 
-				return $this->get_meta( $id, $meta_key, $single );
+						foreach ( $clause as $key => $clause_part ) {
+							if ( empty( $clause_part ) ) {
+								continue;
+							}
 
-			case '__update_meta':
-				$this->check = $arguments[0];
-				$id          = $arguments[1];
-				$meta_key    = $arguments[2];
-				$meta_value  = $arguments[3];
+							preg_match( '/' . $wpdb->prefix . 'give_' . $this->meta_type . 'meta AS (.*) ON/', $clause_part, $alias_table_name );
 
-				return $this->update_meta( $id, $meta_key, $meta_value );
+							if ( isset( $alias_table_name[1] ) ) {
+								$clause[ $key ] = str_replace( "{$alias_table_name[1]}.post_id", "{$alias_table_name[1]}.{$this->meta_type}_id", $clause_part );
+							}
+						}
 
-			case '__delete_meta':
-				$this->check = $arguments[0];
-				$id          = $arguments[1];
-				$meta_key    = $arguments[2];
-				$meta_value  = $arguments[3];
-				$delete_all  = $arguments[3];
+						$clause = implode( "{$join} ", $clause );
+					}
+				}
+				break;
 
-				return $this->delete_meta( $id, $meta_key, $meta_value, $delete_all );
+			case 'posts_where':
+				$clause = str_replace( array( 'mt2.post_id', 'mt1.post_id' ), array(
+					"mt2.{$this->meta_type}_id",
+					"mt1.{$this->meta_type}_id",
+				), $clause );
+				break;
 		}
+
+		return $clause;
+	}
+
+
+	/**
+	 * Check if current query for post type or not.
+	 *
+	 * @since  2.0
+	 * @access protected
+	 *
+	 * @param WP_Query $wp_query
+	 *
+	 * @return bool
+	 */
+	protected function is_post_type_query( $wp_query ) {
+		$status = false;
+
+		// Check if it is payment query.
+		if ( ! empty( $wp_query->query['post_type'] ) ) {
+			if (
+				is_string( $wp_query->query['post_type'] ) &&
+				$this->post_type === $wp_query->query['post_type']
+			) {
+				$status = true;
+			} elseif (
+				is_array( $wp_query->query['post_type'] ) &&
+				1 === count( $wp_query->query['post_type'] ) &&
+				in_array( $this->post_type, $wp_query->query['post_type'] )
+			) {
+				$status = true;
+			}
+		}
+
+		return $status;
 	}
 
 	/**
@@ -366,5 +409,169 @@ class Give_DB_Meta extends Give_DB {
 	 */
 	protected function is_custom_meta_table_active() {
 		return false;
+	}
+
+
+	/**
+	 * Update last_changed key
+	 *
+	 * @since  2.0
+	 * @access private
+	 *
+	 * @param int    $id
+	 * @param string $meta_type
+	 *
+	 * @return void
+	 */
+	private function delete_cache( $id, $meta_type = '' ) {
+		$meta_type = empty( $meta_type ) ? $this->meta_type : $meta_type;
+
+		$group = array(
+			'payment'  => 'give-donations', // Backward compatibility
+			'donation' => 'give-donations',
+			'donor'    => 'give-donors',
+			'customer' => 'give-donors', // Backward compatibility for pre upgrade in 2.0
+		);
+
+		if ( array_key_exists( $meta_type, $group ) ) {
+			Give_Cache::delete_group( $id, $group[ $meta_type ] );
+			wp_cache_delete( $id, $this->meta_type . '_meta' );
+		}
+	}
+
+	/**
+	 * Add support for hidden functions.
+	 *
+	 * @since  2.0
+	 * @access public
+	 *
+	 * @param $name
+	 * @param $arguments
+	 *
+	 * @return mixed
+	 */
+	public function __call( $name, $arguments ) {
+		switch ( $name ) {
+			case '__add_meta':
+				$this->check              = $arguments[0];
+				$id                       = $arguments[1];
+				$meta_key                 = $arguments[2];
+				$meta_value               = $arguments[3];
+				$unique                   = $arguments[4];
+				$this->is_filter_callback = true;
+
+				// Bailout.
+				if ( ! $this->is_valid_post_type( $id ) ) {
+					return $this->check;
+				}
+
+				return $this->add_meta( $id, $meta_key, $meta_value, $unique );
+
+			case '__get_meta':
+				$this->check              = $arguments[0];
+				$id                       = $arguments[1];
+				$meta_key                 = $arguments[2];
+				$single                   = $arguments[3];
+				$this->is_filter_callback = true;
+
+				// Bailout.
+				if ( ! $this->is_valid_post_type( $id ) ) {
+					return $this->check;
+				}
+
+				$this->raw_result = true;
+
+				return $this->get_meta( $id, $meta_key, $single );
+
+			case '__update_meta':
+				$this->check              = $arguments[0];
+				$id                       = $arguments[1];
+				$meta_key                 = $arguments[2];
+				$meta_value               = $arguments[3];
+				$this->is_filter_callback = true;
+
+				// Bailout.
+				if ( ! $this->is_valid_post_type( $id ) ) {
+					return $this->check;
+				}
+
+				return $this->update_meta( $id, $meta_key, $meta_value );
+
+			case '__delete_meta':
+				$this->check              = $arguments[0];
+				$id                       = $arguments[1];
+				$meta_key                 = $arguments[2];
+				$meta_value               = $arguments[3];
+				$delete_all               = $arguments[3];
+				$this->is_filter_callback = true;
+
+				// Bailout.
+				if ( ! $this->is_valid_post_type( $id ) ) {
+					return $this->check;
+				}
+
+				return $this->delete_meta( $id, $meta_key, $meta_value, $delete_all );
+		}
+	}
+
+	/**
+	 * Create Meta Tables.
+	 *
+	 * @since  2.0.1
+	 * @access public
+	 */
+	public function create_table() {
+		global $wpdb;
+
+		$charset_collate = $wpdb->get_charset_collate();
+
+		$sql = "CREATE TABLE {$this->table_name} (
+			meta_id bigint(20) NOT NULL AUTO_INCREMENT,
+			{$this->meta_type}_id bigint(20) NOT NULL,
+			meta_key varchar(255) DEFAULT NULL,
+			meta_value longtext,
+			PRIMARY KEY  (meta_id),
+			KEY {$this->meta_type}_id ({$this->meta_type}_id),
+			KEY meta_key (meta_key({$this->min_index_length}))
+			) {$charset_collate};";
+
+		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+		dbDelta( $sql );
+
+		update_option( $this->table_name . '_db_version', $this->version, false );
+	}
+
+
+	/**
+	 * Get meta type
+	 *
+	 * @since  2.0.4
+	 * @access public
+	 *
+	 * @return string
+	 */
+	public function get_meta_type() {
+		return $this->meta_type;
+	}
+
+	/**
+	 * Remove all meta data matching criteria from a meta table.
+	 *
+	 * @since   2.1.3
+	 * @access  public
+	 *
+	 * @param   int $id ID.
+	 *
+	 * @return  bool  False for failure. True for success.
+	 */
+	public function delete_all_meta( $id = 0 ) {
+		global $wpdb;
+		$status = $wpdb->delete( $this->table_name, array( "{$this->meta_type}_id" => $id ), array( '%d' ) );
+
+		if ( $status ) {
+			$this->delete_cache( $id, $this->meta_type );
+		}
+
+		return $status;
 	}
 }

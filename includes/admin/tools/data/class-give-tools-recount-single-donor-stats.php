@@ -5,7 +5,7 @@
  * This class handles batch processing of recounting a single donor's stats.
  *
  * @subpackage  Admin/Tools/Give_Tools_Recount_Single_Customer_Stats
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.5
  */
@@ -42,6 +42,15 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 	 * @var integer
 	 */
 	public $per_step = 10;
+
+	/**
+	 * Constructor.
+	 */
+	public function __construct( $_step = 1 ) {
+		parent::__construct( $_step );
+
+		$this->is_writable = true;
+	}
 
 	/**
 	 * Get the Export Data
@@ -85,7 +94,7 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 					$found_payment_ids[] = $payment->ID;
 
 					if ( apply_filters( 'give_donor_recount_should_increase_value', true, $payment ) ) {
-						$payment_amount = give_get_payment_amount( $payment->ID );
+						$payment_amount = (float) give_donation_amount( $payment->ID, array( 'type' => 'stats' ) );
 						$step_total     += $payment_amount;
 					}
 
@@ -200,11 +209,7 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 	}
 
 	public function headers() {
-		ignore_user_abort( true );
-
-		if ( ! give_is_func_disabled( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
-			set_time_limit( 0 );
-		}
+		give_ignore_user_abort();
 	}
 
 	/**
@@ -253,7 +258,7 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 				'status'       => $allowed_payment_status,
 				'meta_query'   => array(
 					array(
-						'key'   => '_give_payment_user_email',
+						'key'   => '_give_payment_donor_email',
 						'value' => $donor->email,
 					),
 				),
@@ -280,7 +285,16 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 		global $wpdb;
 		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM $wpdb->options WHERE option_name = '%s'", $key ) );
 
-		return empty( $value ) ? false : maybe_unserialize( $value );
+		if ( empty( $value ) ) {
+			return false;
+		}
+
+		$maybe_json = json_decode( $value );
+		if ( ! is_null( $maybe_json ) ) {
+			$value = json_decode( $value, true );
+		}
+
+		return $value;
 	}
 
 	/**
@@ -296,7 +310,7 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 	private function store_data( $key, $value ) {
 		global $wpdb;
 
-		$value = maybe_serialize( $value );
+		$value = is_array( $value ) ? wp_json_encode( $value ) : esc_attr( $value );
 
 		$data = array(
 			'option_name'  => $key,
@@ -326,5 +340,4 @@ class Give_Tools_Recount_Single_Customer_Stats extends Give_Batch_Export {
 		global $wpdb;
 		$wpdb->delete( $wpdb->options, array( 'option_name' => $key ) );
 	}
-
 }

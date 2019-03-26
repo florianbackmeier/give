@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU Public License
  * @since       1.8
  */
@@ -50,6 +50,8 @@ function give_get_field_callback( $field ) {
 		case 'text_medium':
 		case 'text-small' :
 		case 'text_small' :
+		case 'number' :
+		case 'email' :
 			$func_name = "{$func_name_prefix}_text_input";
 			break;
 
@@ -72,6 +74,14 @@ function give_get_field_callback( $field ) {
 
 		case 'give_default_radio_inline':
 			$func_name = "{$func_name_prefix}_radio";
+			break;
+
+		case 'donation_limit':
+			$func_name = "{$func_name_prefix}_donation_limit";
+			break;
+
+		case 'chosen':
+			$func_name = "{$func_name_prefix}_chosen_input";
 			break;
 
 		default:
@@ -122,7 +132,83 @@ function give_render_field( $field ) {
 		return false;
 	}
 
-	$field = give_backward_compatibility_setting_api_1_8( $field );
+	//$field = give_backward_compatibility_setting_api_1_8( $field );
+
+	// CMB2 compatibility: Push all classes to attributes's class key
+	if ( empty( $field['class'] ) ) {
+		$field['class'] = '';
+	}
+
+	if ( empty( $field['attributes']['class'] ) ) {
+		$field['attributes']['class'] = '';
+	}
+
+	$field['attributes']['class'] = trim( "give-field {$field['attributes']['class']} give-{$field['type']} {$field['class']}" );
+	unset( $field['class'] );
+
+	// CMB2 compatibility: Set wrapper class if any.
+	if ( ! empty( $field['row_classes'] ) ) {
+		$field['wrapper_class'] = $field['row_classes'];
+		unset( $field['row_classes'] );
+	}
+
+	// Set field params on basis of cmb2 field name.
+	switch ( $field['type'] ) {
+		case 'radio_inline':
+			if ( empty( $field['wrapper_class'] ) ) {
+				$field['wrapper_class'] = '';
+			}
+			$field['wrapper_class'] .= ' give-inline-radio-fields';
+
+			break;
+
+		case 'text':
+		case 'text-medium':
+		case 'text_medium':
+		case 'text-small' :
+		case 'text_small' :
+			// CMB2 compatibility: Set field type to text.
+			$field['type'] = isset( $field['attributes']['type'] ) ? $field['attributes']['type'] : 'text';
+
+			// CMB2 compatibility: Set data type to price.
+			if (
+				empty( $field['data_type'] )
+				&& ! empty( $field['attributes']['class'] )
+				&& (
+					false !== strpos( $field['attributes']['class'], 'money' )
+					|| false !== strpos( $field['attributes']['class'], 'amount' )
+				)
+			) {
+				$field['data_type'] = 'decimal';
+			}
+			break;
+
+		case 'levels_id':
+			$field['type'] = 'hidden';
+			break;
+
+		case 'colorpicker' :
+			$field['type']  = 'text';
+			$field['class'] = 'give-colorpicker';
+			break;
+
+		case 'give_default_radio_inline':
+			$field['type']    = 'radio';
+			$field['options'] = array(
+				'default' => __( 'Default' ),
+			);
+			break;
+
+		case 'donation_limit':
+			$field['type']  = 'donation_limit';
+			break;
+	} // End switch().
+
+	// CMB2 compatibility: Add support to define field description by desc & description param.
+	// We encourage you to use description param.
+	$field['description'] = ( ! empty( $field['description'] )
+		? $field['description']
+		: ( ! empty( $field['desc'] ) ? $field['desc'] : '' ) );
 
 	// Call render function.
 	if ( is_array( $func_name ) ) {
@@ -148,20 +234,248 @@ function give_render_field( $field ) {
 function give_text_input( $field ) {
 	global $thepostid, $post;
 
-	$thepostid      = empty( $thepostid ) ? $post->ID : $thepostid;
-	$field['value'] = give_get_field_value( $field, $thepostid );
+	$thepostid              = empty( $thepostid ) ? $post->ID : $thepostid;
+	$field['style']         = isset( $field['style'] ) ? $field['style'] : '';
+	$field['wrapper_class'] = isset( $field['wrapper_class'] ) ? $field['wrapper_class'] : '';
+	$field['value']         = give_get_field_value( $field, $thepostid );
+	$field['type']          = isset( $field['type'] ) ? $field['type'] : 'text';
+	$field['before_field']  = '';
+	$field['after_field']   = '';
+	$data_type              = empty( $field['data_type'] ) ? '' : $field['data_type'];
 
-	// Set description.
-	// Backward compatibility ( 1.8=<version>2.0).
-	$field['after_field'] = ! empty( $field['after_field'] )
-		? $field['after_field'] . give_get_field_description( $field )
-		: give_get_field_description( $field );
+	switch ( $data_type ) {
+		case 'price' :
+			$field['value'] = ( ! empty( $field['value'] ) ? give_format_decimal( give_maybe_sanitize_amount( $field['value'] ), false, false ) : $field['value'] );
+
+			$field['before_field'] = ! empty( $field['before_field'] ) ? $field['before_field'] : ( give_get_option( 'currency_position', 'before' ) == 'before' ? '<span class="give-money-symbol give-money-symbol-before">' . give_currency_symbol() . '</span>' : '' );
+			$field['after_field']  = ! empty( $field['after_field'] ) ? $field['after_field'] : ( give_get_option( 'currency_position', 'before' ) == 'after' ? '<span class="give-money-symbol give-money-symbol-after">' . give_currency_symbol() . '</span>' : '' );
+			break;
+
+		case 'decimal' :
+			$field['attributes']['class'] .= ' give_input_decimal';
+			$field['value']               = ( ! empty( $field['value'] ) ? give_format_decimal( give_maybe_sanitize_amount( $field['value'] ), false, false ) : $field['value'] );
+			break;
+	}
 
 	// Reset label for repeater field compatibility.
 	$field['name'] = give_get_field_name( $field );
 
 	// Render Field.
 	echo Give_Fields_API::render_tag( $field );
+}
+
+/**
+ * Output a chosen input box.
+ * Note: only for internal use.
+ *
+ * @param array $field         {
+ *                              Optional. Array of text input field arguments.
+ *
+ * @type string $id            Field ID. Default ''.
+ * @type string $style         CSS style for input field. Default ''.
+ * @type string $wrapper_class CSS class to use for wrapper of input field. Default ''.
+ * @type string $value         Value of input field. Default ''.
+ * @type string $name          Name of input field. Default ''.
+ * @type string $type          Type of input field. Default 'text'.
+ * @type string $before_field  Text/HTML to add before input field. Default ''.
+ * @type string $after_field   Text/HTML to add after input field. Default ''.
+ * @type string $data_type     Define data type for value of input to filter it properly. Default ''.
+ * @type string $description   Description of input field. Default ''.
+ * @type array  $attributes    List of attributes of input field. Default array().
+ *                                               for example: 'attributes' => array( 'placeholder' => '*****', 'class'
+ *                                               => '****' )
+ * }
+ *
+ * @since 2.1
+ *
+ * @return void
+ */
+function give_chosen_input( $field ) {
+	global $thepostid, $post;
+
+	$thepostid              = empty( $thepostid ) ? $post->ID : $thepostid;
+	$field['style']         = isset( $field['style'] ) ? $field['style'] : '';
+	$field['wrapper_class'] = isset( $field['wrapper_class'] ) ? $field['wrapper_class'] : '';
+	$field['before_field']  = '';
+	$field['after_field']   = '';
+	$placeholder            = isset( $field['placeholder'] ) ? 'data-placeholder="' . $field['placeholder'] . '"' : '';
+	$data_type              = ! empty( $field['data_type'] ) ? $field['data_type'] : '';
+	$type                   = '';
+	$allow_new_values       = '';
+	$field['value']         = give_get_field_value( $field, $thepostid );
+	$field['value']         = is_array( $field['value'] ) ?
+		array_fill_keys( array_filter( $field['value'] ), 'selected' ) :
+		$field['value'];
+	$title_prefixes_value   = ( is_array( $field['value'] ) && count( $field['value'] ) > 0 ) ?
+		array_merge( $field['options'], $field['value'] ) :
+		$field['options'];
+
+	// Set attributes based on multiselect datatype.
+	if ( 'multiselect' === $data_type ) {
+		$type = 'multiple';
+		$allow_new_values = 'data-allows-new-values="true"';
+	}
+
+	?>
+	<p class="give-field-wrap <?php echo esc_attr( $field['id'] ); ?>_field <?php echo esc_attr( $field['wrapper_class'] ); ?>">
+		<label for="<?php echo esc_attr( give_get_field_name( $field ) ); ?>">
+			<?php echo wp_kses_post( $field['name'] ); ?>
+		</label>
+		<?php echo esc_attr( $field['before_field'] ); ?>
+		<select
+				class="give-select-chosen give-chosen-settings"
+				style="<?php echo esc_attr( $field['style'] ); ?>"
+				name="<?php echo esc_attr( give_get_field_name( $field ) ); ?>[]"
+				id="<?php echo esc_attr( $field['id'] ); ?>"
+			<?php echo "{$type} {$allow_new_values} {$placeholder}"; ?>
+		>
+			<?php
+			if ( is_array( $title_prefixes_value ) && count( $title_prefixes_value ) > 0 ) {
+				foreach ( $title_prefixes_value as $key => $value ) {
+					echo sprintf(
+						'<option %1$s value="%2$s">%2$s</option>',
+						( 'selected' === $value ) ? 'selected="selected"' : '',
+						esc_attr( $key )
+					);
+				}
+			}
+			?>
+		</select>
+		<?php echo esc_attr( $field['after_field'] ); ?>
+		<?php echo give_get_field_description( $field ); ?>
+	</p>
+	<?php
+}
+
+/**
+ * Give range slider field.
+ * Note: only for internal logic
+ *
+ * @since 2.1
+ *
+ * @param  array $field         {
+ *                              Optional. Array of text input field arguments.
+ *
+ * @type string  $id            Field ID. Default ''.
+ * @type string  $style         CSS style for input field. Default ''.
+ * @type string  $wrapper_class CSS class to use for wrapper of input field. Default ''.
+ * @type string  $value         Value of input field. Default ''.
+ * @type string  $name          Name of input field. Default ''.
+ * @type string  $type          Type of input field. Default 'text'.
+ * @type string  $before_field  Text/HTML to add before input field. Default ''.
+ * @type string  $after_field   Text/HTML to add after input field. Default ''.
+ * @type string  $data_type     Define data type for value of input to filter it properly. Default ''.
+ * @type string  $description   Description of input field. Default ''.
+ * @type array   $attributes    List of attributes of input field. Default array().
+ *                                               for example: 'attributes' => array( 'placeholder' => '*****', 'class'
+ *                                               => '****' )
+ * }
+ *
+ * @return void
+ */
+function give_donation_limit( $field ) {
+	global $thepostid, $post;
+
+	// Get Give donation form ID.
+	$thepostid = empty( $thepostid ) ? $post->ID : $thepostid;
+
+	// Default arguments.
+	$default_options = array(
+		'style'         => '',
+		'wrapper_class' => '',
+		'value'         => give_get_field_value( $field, $thepostid ),
+		'data_type'     => 'decimal',
+		'before_field'  => '',
+		'after_field'   => '',
+	);
+
+	// Field options.
+	$field['options'] = ! empty( $field['options'] ) ? $field['options'] : array();
+
+	// Default field option arguments.
+	$field['options'] = wp_parse_args( $field['options'], array(
+			'display_label' => '',
+			'minimum'       => give_format_decimal( '1.00', false, false ),
+			'maximum'       => give_format_decimal( '999999.99', false, false ),
+		)
+	);
+
+	// Set default field options.
+	$field_options = wp_parse_args( $field, $default_options );
+
+	// Get default minimum value, if empty.
+	$field_options['value']['minimum'] = ! empty( $field_options['value']['minimum'] )
+		? $field_options['value']['minimum']
+		: $field_options['options']['minimum'];
+
+	// Get default maximum value, if empty.
+	$field_options['value']['maximum'] = ! empty( $field_options['value']['maximum'] )
+		? $field_options['value']['maximum']
+		: $field_options['options']['maximum'];
+	?>
+	<p class="give-field-wrap <?php echo esc_attr( $field_options['id'] ); ?>_field <?php echo esc_attr( $field_options['wrapper_class'] ); ?>">
+	<label for="<?php echo give_get_field_name( $field_options ); ?>"><?php echo wp_kses_post( $field_options['name'] ); ?></label>
+	<span class="give_donation_limit_display">
+		<?php
+		foreach ( $field_options['value'] as $amount_range => $amount_value ) {
+
+			switch ( $field_options['data_type'] ) {
+				case 'price' :
+					$currency_position = give_get_option( 'currency_position', 'before' );
+					$price_field_labels     = 'minimum' === $amount_range ? __( 'Minimum amount', 'give' ) : __( 'Maximum amount', 'give' );
+
+					$tooltip_html = array(
+						'before' => Give()->tooltips->render_span( array(
+							'label'       => $price_field_labels,
+							'tag_content' => sprintf( '<span class="give-money-symbol give-money-symbol-before">%s</span>', give_currency_symbol() ),
+						) ),
+						'after'  => Give()->tooltips->render_span( array(
+							'label'       => $price_field_labels,
+							'tag_content' => sprintf( '<span class="give-money-symbol give-money-symbol-after">%s</span>', give_currency_symbol() ),
+						) ),
+					);
+
+					$before_html = ! empty( $field_options['before_field'] )
+						? $field_options['before_field']
+						: ( 'before' === $currency_position ? $tooltip_html['before'] : '' );
+
+					$after_html = ! empty( $field_options['after_field'] )
+						? $field_options['after_field']
+						: ( 'after' === $currency_position ? $tooltip_html['after'] : '' );
+
+					$field_options['attributes']['class']    .= ' give-text_small';
+					$field_options['value'][ $amount_range ] = $amount_value;
+					break;
+
+				case 'decimal' :
+					$field_options['attributes']['class']    .= ' give_input_decimal give-text_small';
+					$field_options['value'][ $amount_range ] = $amount_value;
+					break;
+			}
+
+			echo '<span class=give-minmax-wrap>';
+			printf( '<label for="%1$s_give_donation_limit_%2$s">%3$s</label>', esc_attr( $field_options['id'] ), esc_attr( $amount_range ), esc_html( $price_field_labels ) );
+
+			echo isset( $before_html ) ? $before_html : '';
+			?>
+			<input
+					name="<?php echo give_get_field_name( $field_options ); ?>[<?php echo esc_attr( $amount_range ); ?>]"
+					type="text"
+					id="<?php echo $field_options['id']; ?>_give_donation_limit_<?php echo $amount_range; ?>"
+					data-range_type="<?php echo esc_attr( $amount_range ); ?>"
+					value="<?php echo give_format_decimal( esc_attr( $field_options['value'][ $amount_range ] ) ); ?>"
+					placeholder="<?php echo give_format_decimal( $field_options['options'][ $amount_range ] ); ?>"
+				<?php echo give_get_custom_attributes( $field_options ); ?>
+			/>
+			<?php
+			echo isset( $after_html ) ? $after_html : '';
+			echo '</span>';
+		}
+		?>
+	</span>
+		<?php echo give_get_field_description( $field_options ); ?>
+	</p>
+	<?php
 }
 
 /**
@@ -487,13 +801,14 @@ function give_docs_link( $field ) {
  * Output preview buttons.
  *
  * @since 2.0
+ *
  * @param $field
  */
 function give_email_preview_buttons( $field ) {
 	/* @var WP_Post $post */
 	global $post;
 
-	$field_id = str_replace( '_preview_buttons', '', $field['id'] );
+	$field_id = str_replace( array( '_give_', '_preview_buttons' ), '', $field['id'] );
 
 	ob_start();
 
@@ -521,7 +836,7 @@ function give_email_preview_buttons( $field ) {
 				array(
 					'give_action'  => 'send_preview_email',
 					'email_type'   => $field_id,
-					'give-message' => 'sent-test-email',
+					'give-messages[]' => 'sent-test-email',
 					'form_id'      => $post->ID,
 				)
 			), 'give-send-preview-email' ),
@@ -544,6 +859,7 @@ function give_email_preview_buttons( $field ) {
  * Note: Use only for single post, page or custom post type.
  *
  * @since  1.8
+ * @since  2.1 Added support for donation_limit.
  *
  * @param  array $field
  * @param  int   $postid
@@ -555,8 +871,25 @@ function give_get_field_value( $field, $postid ) {
 		return $field['field_attributes']['value'];
 	}
 
-	// Get value from db.
-	$field_value = give_get_meta( $postid, $field['id'], true );
+	// If field is range slider.
+	if ( 'donation_limit' === $field['type'] ) {
+
+		// Get minimum value.
+		$minimum = give_get_meta( $postid, $field['id'] . '_minimum', true );
+
+		// Give < 2.1
+		if ( '_give_custom_amount_range' === $field['id'] && empty( $minimum ) ) {
+			$minimum = give_get_meta( $postid, '_give_custom_amount_minimum', true );
+		}
+
+		$field_value = array(
+			'minimum' => $minimum,
+			'maximum' => give_get_meta( $postid, $field['id'] . '_maximum', true ),
+		);
+	} else {
+		// Get value from db.
+		$field_value = give_get_meta( $postid, $field['id'], true );
+	}
 
 	/**
 	 * Filter the field value before apply default value.
@@ -604,29 +937,6 @@ function give_get_field_description( $field ) {
 	return $field_desc_html;
 }
 
-
-/**
- * Get field custom attributes as string.
- *
- * @since 1.8
- *
- * @param $field
- *
- * @return string
- */
-function give_get_custom_attributes( $field ) {
-	// Custom attribute handling
-	$custom_attributes = array();
-
-	if ( ! empty( $field['attributes'] ) && is_array( $field['attributes'] ) ) {
-
-		foreach ( $field['attributes'] as $attribute => $value ) {
-			$custom_attributes[] = esc_attr( $attribute ) . '="' . esc_attr( $value ) . '"';
-		}
-	}
-
-	return implode( ' ', $custom_attributes );
-}
 
 /**
  * Get repeater field value.
@@ -708,317 +1018,6 @@ function _give_metabox_form_data_repeater_fields( $fields ) {
 
 
 /**
- * Get current setting tab.
- *
- * @since  1.8
- * @return string
- */
-function give_get_current_setting_tab() {
-	// Get current setting page.
-	$current_setting_page = give_get_current_setting_page();
-
-	/**
-	 * Filter the default tab for current setting page.
-	 *
-	 * @since 1.8
-	 *
-	 * @param string
-	 */
-	$default_current_tab = apply_filters( "give_default_setting_tab_{$current_setting_page}", 'general' );
-
-	// Get current tab.
-	$current_tab = empty( $_GET['tab'] ) ? $default_current_tab : urldecode( $_GET['tab'] );
-
-	// Output.
-	return $current_tab;
-}
-
-
-/**
- * Get current setting section.
- *
- * @since  1.8
- * @return string
- */
-function give_get_current_setting_section() {
-	// Get current tab.
-	$current_tab = give_get_current_setting_tab();
-
-	/**
-	 * Filter the default section for current setting page tab.
-	 *
-	 * @since 1.8
-	 *
-	 * @param string
-	 */
-	$default_current_section = apply_filters( "give_default_setting_tab_section_{$current_tab}", '' );
-
-	// Get current section.
-	$current_section = empty( $_REQUEST['section'] ) ? $default_current_section : urldecode( $_REQUEST['section'] );
-
-	// Output.
-	return $current_section;
-}
-
-/**
- * Get current setting page.
- *
- * @since  1.8
- * @return string
- */
-function give_get_current_setting_page() {
-	// Get current page.
-	$setting_page = ! empty( $_GET['page'] ) ? urldecode( $_GET['page'] ) : '';
-
-	// Output.
-	return $setting_page;
-}
-
-/**
- * Set value for Form content --> Display content field setting.
- *
- * Backward compatibility:  set value by _give_content_option form meta field value if _give_display_content is not set
- * yet.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_display_content_field_value( $field_value, $field, $postid ) {
-	$show_content = give_get_meta( $postid, '_give_content_option', true );
-
-	if (
-		! give_get_meta( $postid, '_give_display_content', true )
-		&& $show_content
-		&& ( 'none' !== $show_content )
-	) {
-		$field_value = 'enabled';
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_display_content_field_value', '_give_display_content_field_value', 10, 3 );
-
-
-/**
- * Set value for Form content --> Content placement field setting.
- *
- * Backward compatibility:  set value by _give_content_option form meta field value if _give_content_placement is not
- * set yet.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_content_placement_field_value( $field_value, $field, $postid ) {
-	$show_content = give_get_meta( $postid, '_give_content_option', true );
-
-	if (
-		! give_get_meta( $postid, '_give_content_placement', true )
-		&& ( 'none' !== $show_content )
-	) {
-		$field_value = $show_content;
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_content_placement_field_value', '_give_content_placement_field_value', 10, 3 );
-
-
-/**
- * Set value for Terms and Conditions --> Terms and Conditions field setting.
- *
- * Backward compatibility:  set value by _give_terms_option form meta field value if it's value is none.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_terms_option_field_value( $field_value, $field, $postid ) {
-	$term_option = give_get_meta( $postid, '_give_terms_option', true );
-
-	if ( in_array( $term_option, array( 'none', 'yes' ) ) ) {
-		$field_value = ( 'yes' === $term_option ? 'enabled' : 'disabled' );
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_terms_option_field_value', '_give_terms_option_field_value', 10, 3 );
-
-
-/**
- * Set value for Form Display --> Offline Donation --> Billing Fields.
- *
- * Backward compatibility:  set value by _give_offline_donation_enable_billing_fields_single form meta field value if
- * it's value is on.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_offline_donation_enable_billing_fields_single_field_value( $field_value, $field, $postid ) {
-	$offline_donation = give_get_meta( $postid, '_give_offline_donation_enable_billing_fields_single', true );
-
-	if ( 'on' === $offline_donation ) {
-		$field_value = 'enabled';
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_offline_donation_enable_billing_fields_single_field_value', '_give_offline_donation_enable_billing_fields_single_field_value', 10, 3 );
-
-
-/**
- * Set value for Donation Options --> Custom Amount.
- *
- * Backward compatibility:  set value by _give_custom_amount form meta field value if it's value is yes or no.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_custom_amount_field_value( $field_value, $field, $postid ) {
-	$custom_amount = give_get_meta( $postid, '_give_custom_amount', true );
-
-	if ( in_array( $custom_amount, array( 'yes', 'no' ) ) ) {
-		$field_value = ( 'yes' === $custom_amount ? 'enabled' : 'disabled' );
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_custom_amount_field_value', '_give_custom_amount_field_value', 10, 3 );
-
-
-/**
- * Set value for Donation Goal --> Donation Goal.
- *
- * Backward compatibility:  set value by _give_goal_option form meta field value if it's value is yes or no.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_goal_option_field_value( $field_value, $field, $postid ) {
-	$goal_option = give_get_meta( $postid, '_give_goal_option', true );
-
-	if ( in_array( $goal_option, array( 'yes', 'no' ) ) ) {
-		$field_value = ( 'yes' === $goal_option ? 'enabled' : 'disabled' );
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_goal_option_field_value', '_give_goal_option_field_value', 10, 3 );
-
-/**
- * Set value for Donation Goal --> close Form.
- *
- * Backward compatibility:  set value by _give_close_form_when_goal_achieved form meta field value if it's value is yes
- * or no.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_close_form_when_goal_achieved_value( $field_value, $field, $postid ) {
-	$close_form = give_get_meta( $postid, '_give_close_form_when_goal_achieved', true );
-
-	if ( in_array( $close_form, array( 'yes', 'no' ) ) ) {
-		$field_value = ( 'yes' === $close_form ? 'enabled' : 'disabled' );
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_close_form_when_goal_achieved_field_value', '_give_close_form_when_goal_achieved_value', 10, 3 );
-
-
-/**
- * Set value for Form display --> Guest Donation.
- *
- * Backward compatibility:  set value by _give_logged_in_only form meta field value if it's value is yes or no.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_logged_in_only_value( $field_value, $field, $postid ) {
-	$guest_donation = give_get_meta( $postid, '_give_logged_in_only', true );
-
-	if ( in_array( $guest_donation, array( 'yes', 'no' ) ) ) {
-		$field_value = ( 'yes' === $guest_donation ? 'enabled' : 'disabled' );
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_logged_in_only_field_value', '_give_logged_in_only_value', 10, 3 );
-
-/**
- * Set value for Offline Donations --> Offline Donations.
- *
- * Backward compatibility:  set value by _give_customize_offline_donations form meta field value if it's value is yes
- * or no.
- *
- * @since  1.8
- *
- * @param  mixed $field_value Field Value.
- * @param  array $field       Field args.
- * @param  int   $postid      Form/Post ID.
- *
- * @return string
- */
-function _give_customize_offline_donations_value( $field_value, $field, $postid ) {
-	$customize_offline_text = give_get_meta( $postid, '_give_customize_offline_donations', true );
-
-	if ( in_array( $customize_offline_text, array( 'yes', 'no' ) ) ) {
-		$field_value = ( 'yes' === $customize_offline_text ? 'enabled' : 'disabled' );
-	}
-
-	return $field_value;
-}
-
-add_filter( '_give_customize_offline_donations_field_value', '_give_customize_offline_donations_value', 10, 3 );
-
-
-/**
  * Set repeater field id for multi donation form.
  *
  * @since 1.8
@@ -1061,3 +1060,85 @@ function _give_set_multi_level_repeater_field_value( $field_value, $field, $fiel
 }
 
 add_filter( 'give_get_repeater_field__give_id_value', '_give_set_multi_level_repeater_field_value', 10, 4 );
+
+/**
+ * Output Donation form radio input box.
+ *
+ * @since  2.1.3
+ *
+ * @param  array $field {
+ *                              Optional. Array of radio field arguments.
+ *
+ * @type string $id Field ID. Default ''.
+ * @type string $style CSS style for input field. Default ''.
+ * @type string $wrapper_class CSS class to use for wrapper of input field. Default ''.
+ * @type string $value Value of input field. Default ''.
+ * @type string $name Name of input field. Default ''.
+ * @type string $description Description of input field. Default ''.
+ * @type array $attributes List of attributes of input field. Default array().
+ *                                               for example: 'attributes' => array( 'placeholder' => '*****', 'class'
+ *                                               => '****' )
+ * @type array $options List of options. Default array().
+ *                                               for example: 'options' => array( 'enable' => 'Enable', 'disable' =>
+ *                                               'Disable' )
+ * }
+ * @return void
+ */
+function give_donation_form_goal( $field ) {
+	global $thepostid, $post;
+
+	$thepostid              = empty( $thepostid ) ? $post->ID : $thepostid;
+	$field['style']         = isset( $field['style'] ) ? $field['style'] : '';
+	$field['wrapper_class'] = isset( $field['wrapper_class'] ) ? $field['wrapper_class'] : '';
+	$field['value']         = give_get_field_value( $field, $thepostid );
+	$field['name']          = isset( $field['name'] ) ? $field['name'] : $field['id'];
+
+
+	printf(
+		'<fieldset class="give-field-wrap %s_field %s">',
+		esc_attr( $field['id'] ),
+		esc_attr( $field['wrapper_class'] )
+	);
+
+	printf(
+		'<span class="give-field-label">%s</span>',
+		esc_html( $field['name'] )
+	);
+
+	printf(
+		'<legend class="screen-reader-text">%s</legend>',
+		esc_html( $field['name'] )
+	);
+	?>
+
+	<ul class="give-radios">
+		<?php
+		foreach ( $field['options'] as $key => $value ) {
+			$attributes = empty( $field['attributes'] ) ? '' : give_get_attribute_str( $field['attributes'] );
+			printf(
+				'<li><label><input name="%s" value="%s" type="radio" style="%s" %s %s /> %s </label></li>',
+				give_get_field_name( $field ),
+				esc_attr( $key ),
+				esc_attr( $field['style'] ),
+				checked( esc_attr( $field['value'] ), esc_attr( $key ), false ),
+				$attributes,
+				esc_html( $value )
+			);
+		}
+		?>
+	</ul>
+
+	<?php
+	/**
+	 * Action to add HTML after donation form radio button is display and before description.
+	 *
+	 * @since 2.1.3
+	 *
+	 * @param array $field Array of radio field arguments.
+	 */
+	do_action( 'give_donation_form_goal_before_description', $field );
+
+	echo give_get_field_description( $field );
+
+	echo '</fieldset>';
+}

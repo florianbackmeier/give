@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_DB_Logs
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -39,9 +39,7 @@ class Give_DB_Logs extends Give_DB {
 		$this->primary_key = 'ID';
 		$this->version     = '1.0';
 
-		// Install table.
-		$this->register_table();
-
+		parent::__construct();
 	}
 
 	/**
@@ -191,7 +189,7 @@ class Give_DB_Logs extends Give_DB {
 	public function get_logs( $args = array() ) {
 		global $wpdb;
 		$sql_query = $this->get_sql( $args );
-		
+
 		// Get log.
 		if ( ! ( $logs = Give_Cache::get( 'give_logs', true, $sql_query ) ) ) {
 			$logs = $wpdb->get_results( $sql_query );
@@ -225,7 +223,7 @@ class Give_DB_Logs extends Give_DB {
 			$count = $wpdb->get_var( $sql_query );
 			Give_Cache::set( 'give_logs_count', $count, 3600, true, $args );
 		}
-		
+
 		return absint( $count );
 	}
 
@@ -255,7 +253,7 @@ class Give_DB_Logs extends Give_DB {
 		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 		dbDelta( $sql );
 
-		update_option( $this->table_name . '_db_version', $this->version );
+		update_option( $this->table_name . '_db_version', $this->version, false );
 	}
 
 
@@ -289,7 +287,7 @@ class Give_DB_Logs extends Give_DB {
 		$this->validate_params( $args );
 
 		if ( $args['number'] < 1 ) {
-			$args['number'] = 999999999999;
+			$args['number'] = 99999999999;
 		}
 
 		// Where clause for primary table.

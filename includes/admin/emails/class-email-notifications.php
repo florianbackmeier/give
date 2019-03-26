@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -38,7 +38,7 @@ class Give_Email_Notifications {
 	 *
 	 * @since  2.0
 	 * @access private
-	 * Give_Payumoney_API constructor.
+	 * Give_Email_Notifications constructor.
 	 */
 	private function __construct() {
 	}
@@ -76,6 +76,7 @@ class Give_Email_Notifications {
 		add_filter( 'give_metabox_form_data_settings', array( $this, 'add_metabox_setting_fields' ), 10, 2 );
 		add_action( 'init', array( $this, 'preview_email' ) );
 		add_action( 'init', array( $this, 'send_preview_email' ) );
+		add_action( 'admin_init', array( $this, 'validate_settings' ) );
 
 		/* @var Give_Email_Notification $email */
 		foreach ( $this->get_email_notifications() as $email ) {
@@ -117,7 +118,54 @@ class Give_Email_Notifications {
 		// Email notification setting.
 		$settings['email_notification_options'] = array(
 			'id'         => 'email_notification_options',
-			'title'      => __( 'Email Notification', 'give' ),
+			'title'      => __( 'Email Notifications', 'give' ),
+			'icon-html' => '<span class="dashicons dashicons-email-alt"></span>',
+			'fields'     => array(
+				array(
+					'name'        => __( 'Email Options', 'give' ),
+					'id'          => '_give_email_options',
+					'type'        => 'radio_inline',
+					'default'     => 'global',
+					'options'     => array(
+						'global'   => __( 'Global Options' ),
+						'enabled'  => __( 'Customize', 'give' ),
+					),
+				),
+				array(
+					'id'      => '_give_email_template',
+					'name'    => esc_html__( 'Email Template', 'give' ),
+					'desc'    => esc_html__( 'Choose your template from the available registered template types.', 'give' ),
+					'type'    => 'select',
+					'default' => 'default',
+					'options' => give_get_email_templates(),
+				),
+				array(
+					'id'   => '_give_email_logo',
+					'name' => esc_html__( 'Logo', 'give' ),
+					'desc' => esc_html__( 'Upload or choose a logo to be displayed at the top of the donation receipt emails. Displayed on HTML emails only.', 'give' ),
+					'type' => 'file',
+				),
+				array(
+					'id'      => '_give_from_name',
+					'name'    => esc_html__( 'From Name', 'give' ),
+					'desc'    => esc_html__( 'The name which appears in the "From" field in all Give donation emails.', 'give' ),
+					'default' => get_bloginfo( 'name' ),
+					'type'    => 'text',
+				),
+				array(
+					'id'      => '_give_from_email',
+					'name'    => esc_html__( 'From Email', 'give' ),
+					'desc'    => esc_html__( 'Email address from which all Give emails are sent from. This will act as the "from" and "reply-to" email address.', 'give' ),
+					'default' => get_bloginfo( 'admin_email' ),
+					'type'    => 'text',
+				),
+				array(
+					'name'  => 'email_notification_docs',
+					'type'  => 'docs_link',
+					'url'   => 'http://docs.givewp.com/email-notification',
+					'title' => __( 'Email Notification', 'give' ),
+				),
+			),
 
 			/**
 			 * Filter the email notification settings.
@@ -144,6 +192,7 @@ class Give_Email_Notifications {
 			include GIVE_PLUGIN_DIR . 'includes/admin/emails/class-offline-donation-instruction-email.php',
 			include GIVE_PLUGIN_DIR . 'includes/admin/emails/class-new-donor-register-email.php',
 			include GIVE_PLUGIN_DIR . 'includes/admin/emails/class-donor-register-email.php',
+			include GIVE_PLUGIN_DIR . 'includes/admin/emails/class-donor-note-email.php',
 			include GIVE_PLUGIN_DIR . 'includes/admin/emails/class-email-access-email.php',
 		);
 
@@ -204,17 +253,18 @@ class Give_Email_Notifications {
 			}
 
 			// Set form id.
-			$form_id = empty( $_GET['form_id']  ) ? null : absint( $_GET['form_id'] );
+			$form_id = empty( $_GET['form_id'] ) ? null : absint( $_GET['form_id'] );
 
 			// Call setup email data to apply filter and other thing to email.
-			$email->setup_email_data();
+			$email->send_preview_email( false );
 
 			// Decode message.
 			$email_message = $email->preview_email_template_tags( $email->get_email_message( $form_id ) );
 
-			// Set email template.
-			Give()->emails->html    = true;
-			Give()->emails->__set( 'template', $email->get_email_template( $form_id ) );
+			// Show formatted text in browser even text/plain content type set for an email.
+			Give()->emails->html = true;
+
+			Give()->emails->form_id = $form_id;
 
 			if ( 'text/plain' === $email->config['content_type'] ) {
 				// Give()->emails->__set( 'html', false );
@@ -342,6 +392,10 @@ class Give_Email_Notifications {
 				break;
 			}
 		}
+
+		// Remove the test email query arg.
+		wp_redirect( remove_query_arg( 'give_action' ) );
+		exit;
 	}
 
 
@@ -353,6 +407,31 @@ class Give_Email_Notifications {
 	 */
 	public function load() {
 		add_action( 'init', array( $this, 'init' ), -1 );
+	}
+
+
+	/**
+	 * Verify email setting before saving
+	 *
+	 * @since  2.0
+	 * @access public
+	 */
+	public function validate_settings() {
+		// Bailout.
+		if (
+			! Give_Admin_Settings::is_saving_settings() ||
+			'emails' !== give_get_current_setting_tab() ||
+			! isset( $_GET['section'] )
+		) {
+			return;
+		}
+
+		// Get email type.
+		$email_type = give_get_current_setting_section();
+
+		if ( ! empty( $_POST["{$email_type}_recipient"] ) ) {
+			$_POST["{$email_type}_recipient"] = array_unique( array_filter( $_POST["{$email_type}_recipient"] ) );
+		}
 	}
 }
 

@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -258,7 +258,7 @@ function give_get_country_list() {
 		'PG' => esc_html__( 'Papua New Guinea', 'give' ),
 		'PY' => esc_html__( 'Paraguay', 'give' ),
 		'PE' => esc_html__( 'Peru', 'give' ),
-		'PH' => esc_html__( 'Phillipines', 'give' ),
+		'PH' => esc_html__( 'Philippines', 'give' ),
 		'PN' => esc_html__( 'Pitcairn Island', 'give' ),
 		'PL' => esc_html__( 'Poland', 'give' ),
 		'PT' => esc_html__( 'Portugal', 'give' ),
@@ -416,9 +416,9 @@ function give_no_states_country_list() {
 }
 
 /**
- * List of Country in which states feilds is not required.
+ * List of Country in which states fields is not required.
  *
- * There are some country in which states feilds is not required Example: United Kingdom ( uk ).
+ * There are some country in which states fields is not required Example: United Kingdom ( uk ).
  *
  * @since 1.8.11
  *
@@ -434,13 +434,41 @@ function give_states_not_required_country_list() {
 	}
 
 	/**
-	 * Filter can be used to add or remove the Country in which states feilds is not required.
+	 * Filter can be used to add or remove the Country in which states fields is not required.
 	 *
 	 * @since 1.8.11
 	 *
 	 * @param array $country Contain key as there country code & value as there country name.
 	 */
 	return (array) apply_filters( 'give_states_not_required_country_list', $country_list );
+}
+
+/**
+ * List of Country in which city fields is not required.
+ *
+ * There are some country in which city fields is not required Example: Singapore ( sk ).
+ *
+ * @since 2.3.0
+ *
+ * $country array $country_list.
+ */
+function give_city_not_required_country_list() {
+	$country_list = array();
+	$locale       = give_get_country_locale();
+	foreach ( $locale as $key => $value ) {
+		if ( ! empty( $value['city'] ) && isset( $value['city']['required'] ) && false === $value['city']['required'] ) {
+			$country_list[ $key ] = $value['city'];
+		}
+	}
+
+	/**
+	 * Filter can be used to add or remove the Country in which city fields is not required.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array $country_list Contain key as there country code & value as there country name.
+	 */
+	return (array) apply_filters( 'give_city_not_required_country_list', $country_list );
 }
 
 /**
@@ -684,9 +712,7 @@ function give_get_country_locale() {
 		),
 		'NZ' => array(
 			'state' => array(
-				'required' => false,
-				'label'    => __( 'Region', 'give' ),
-				'hidden'   => true,
+				'label' => __( 'Region', 'give' ),
 			),
 		),
 		'NO' => array(
@@ -726,6 +752,9 @@ function give_get_country_locale() {
 			'state' => array(
 				'required' => false,
 			),
+			'city'  => array(
+				'required' => false,
+			)
 		),
 		'SK' => array(
 			'state' => array(

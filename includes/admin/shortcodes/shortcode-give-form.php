@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Admin
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.3.0
  */
@@ -112,6 +112,11 @@ class Give_Shortcode_Donation_Form extends Give_Shortcode_Generator {
 				'name'    => 'continue_button_title',
 				'label'   => esc_attr__( 'Button Text', 'give' ),
 				'tooltip' => esc_attr__( 'The button label for displaying the additional payment fields.', 'give' ),
+			),
+			array(
+				'type' => 'docs_link',
+				'text' => esc_html__( 'Learn more about the Donation Form Shortcode', 'give' ),
+				'link' => 'http://docs.givewp.com/shortcode-give-forms',
 			),
 		);
 	}

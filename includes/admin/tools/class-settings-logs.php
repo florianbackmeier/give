@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_Settings_Logs
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU Public License
  * @since       1.8
  */
@@ -21,22 +21,13 @@ if ( ! class_exists( 'Give_Settings_Logs' ) ) :
 	 * @sine 1.8
 	 */
 	class Give_Settings_Logs extends Give_Settings_Page {
-
 		/**
-		 * Setting page id.
+		 * Flag to check if enable saving option for setting page or not
 		 *
-		 * @since 1.8
-		 * @var   string
+		 * @since 1.8.17
+		 * @var bool
 		 */
-		protected $id = '';
-
-		/**
-		 * Setting page label.
-		 *
-		 * @since 1.8
-		 * @var   string
-		 */
-		protected $label = '';
+		protected $enable_save = false;
 
 		/**
 		 * Constructor.
@@ -45,7 +36,7 @@ if ( ! class_exists( 'Give_Settings_Logs' ) ) :
 			$this->id    = 'logs';
 			$this->label = __( 'Logs', 'give' );
 
-			$this->default_tab = 'sales';
+			$this->default_tab = 'gateway_errors';
 
 			parent::__construct();
 
@@ -60,30 +51,12 @@ if ( ! class_exists( 'Give_Settings_Logs' ) ) :
 		}
 
 		/**
-		 * Add this page to settings.
-		 *
-		 * @since  1.8
-		 *
-		 * @param  array $pages List of pages.
-		 *
-		 * @return array
-		 */
-		public function add_settings_page( $pages ) {
-			$pages[ $this->id ] = $this->label;
-
-			return $pages;
-		}
-
-		/**
 		 * Get settings array.
 		 *
 		 * @since  1.8
 		 * @return array
 		 */
 		public function get_settings() {
-			// Hide save button.
-			$GLOBALS['give_hide_save_button'] = true;
-
 			// Get settings.
 			$settings = apply_filters( 'give_settings_logs', array(
 				array(
@@ -92,7 +65,7 @@ if ( ! class_exists( 'Give_Settings_Logs' ) ) :
 					'table_html' => false,
 				),
 				array(
-					'id'   => 'api',
+					'id'   => 'logs',
 					'name' => __( 'Log', 'give' ),
 					'type' => 'logs',
 
@@ -125,39 +98,14 @@ if ( ! class_exists( 'Give_Settings_Logs' ) ) :
 		 */
 		public function get_sections() {
 			$sections = array(
-				'sales'          => __( 'Donations', 'give' ),
 				'gateway_errors' => __( 'Payment Errors', 'give' ),
 				'api_requests'   => __( 'API Requests', 'give' ),
+				'updates'   => __( 'Updates', 'give' ),
 			);
 
 			$sections = apply_filters( 'give_log_views', $sections );
 
 			return apply_filters( 'give_get_sections_' . $this->id, $sections );
-		}
-
-		/**
-		 * Output the settings.
-		 *
-		 * @since  1.8
-		 * @return void
-		 */
-		public function output() {
-			$settings = $this->get_settings();
-
-			Give_Admin_Settings::output_fields( $settings, 'give_settings' );
-		}
-
-
-		/**
-		 * Render logs field.
-		 *
-		 * @since 2.0
-		 * @access public
-		 * @param $field
-		 */
-		public function render_logs_field( $field ) {
-			give_reports_tab_logs();
-			echo Give_Admin_Settings::get_field_description( $field );
 		}
 	}
 

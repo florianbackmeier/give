@@ -5,7 +5,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_Tooltips
- * @copyright   Copyright (c) 2017, WordImpress
+ * @copyright   Copyright (c) 2017, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -191,8 +191,9 @@ class Give_Tooltips {
 			$args = array( 'label' => $args );
 		}
 
-		$args['tag_content'] = '<i class="give-icon give-icon-question"></i>';
-		$tooltip_markup      = $this->render_span( $args );
+		$args['tag_content']         = '<i class="give-icon give-icon-question"></i>';
+		$args['attributes']['class'] = 'give-tooltip';
+		$tooltip_markup              = $this->render_span( $args );
 
 		return $tooltip_markup;
 	}

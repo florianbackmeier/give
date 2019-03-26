@@ -7,7 +7,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -147,18 +147,16 @@ class Give_Email_Notification_Table extends WP_List_Table {
 		);
 
 		if ( ! $user_can_edit_status ) {
-			$html = Give()->tooltips->render_span( array(
-				'label'       => $email->config['notices']['non-notification-status-editable'],
-				'tag_content' => sprintf( '<i class="%s"></i></span></span><span class="spinner"></span>', $icon_classes ),
-				'attributes'  => $attributes,
-			) );
-		} else {
-			$html = sprintf(
-				'<span %1$s><i class="%2$s"></i></span></span><span class="spinner"></span>',
-				give_get_attribute_str( $attributes ),
-				$icon_classes
-			);
+			$icon_classes         = 'dashicons dashicons-lock';
+
+			$attributes['data-notice'] = esc_attr( $email->config['notices']['non-notification-status-editable'] );
 		}
+
+		$html = sprintf(
+			'<span %1$s><i class="%2$s"></i></span></span><span class="spinner"></span>',
+			give_get_attribute_str( $attributes ),
+			$icon_classes
+		);
 
 		return $html;
 	}
@@ -175,7 +173,13 @@ class Give_Email_Notification_Table extends WP_List_Table {
 	 * @return string
 	 */
 	public function column_email_type( Give_Email_Notification $email ) {
-		return Give_Email_Notification_Util::get_formatted_email_type( $email->config['content_type'] );
+		$email_content_type_label = apply_filters(
+			"give_email_list_render_{$email->config['id']}_email_content_type",
+			Give_Email_Notification_Util::get_formatted_email_type( $email->config['content_type'] ),
+			$email
+		);
+
+		return $email_content_type_label;
 	}
 
 	/**
@@ -246,18 +250,33 @@ class Give_Email_Notification_Table extends WP_List_Table {
 		$sortable              = $this->get_sortable_columns();
 		$this->_column_headers = array( $columns, $hidden, $sortable, $this->get_primary_column_name() );
 
+		// Get email section
+		$current_section = give_get_current_setting_section();
+
 		// Set email notifications.
 		/* @var Give_Email_Notification $email_notification */
 		foreach ( $this->email_notifications->get_email_notifications() as $email_notification ) {
-			if ( Give_Email_Notification_Util::is_show_on_emails_setting_page( $email_notification ) ) {
-				$email_notifications[] = $email_notification;
+			if ( ! Give_Email_Notification_Util::is_show_on_emails_setting_page( $email_notification ) ) {
+				continue;
+			}
+
+			if ( 'donor-email' === $current_section ) {
+				// Add donor emails to email array list.
+				if ( empty( $email_notification->config['has_recipient_field'] ) ) {
+					$email_notifications[] = $email_notification;
+				}
+			} elseif ( 'admin-email' === $current_section ) {
+				// Add admin emails to email array list.
+				if ( ! empty( $email_notification->config['has_recipient_field'] ) ) {
+					$email_notifications[] = $email_notification;
+				}
 			}
 		}
 
-		$totalItems  = count( $email_notifications );
+		$total_items  = count( $email_notifications );
 		$this->items = $email_notifications;
 		$this->set_pagination_args( array(
-			'total_items' => $totalItems,
+			'total_items' => $total_items,
 			'per_page'    => $this->per_page,
 		) );
 	}
@@ -269,7 +288,7 @@ class Give_Email_Notification_Table extends WP_List_Table {
 	 * @access public
 	 */
 	public function no_items() {
-		_e( 'No give email notification found.' );
+		_e( 'No give email notification found.', 'give' );
 	}
 
 	/**

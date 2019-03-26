@@ -2,9 +2,9 @@
 /**
  * Give Form Functions
  *
- * @package     WordImpress
+ * @package     GiveWP
  * @subpackage  Includes/Forms
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.1
  */
@@ -118,10 +118,11 @@ function give_get_success_page_uri() {
  * @return bool True if on the Success page, false otherwise.
  */
 function give_is_success_page() {
-	$give_options    = give_get_settings();
-	$is_success_page = isset( $give_options['success_page'] ) ? is_page( $give_options['success_page'] ) : false;
+	$give_options = give_get_settings();
 
-	return apply_filters( 'give_is_success_page', $is_success_page );
+	$success_page = isset( $give_options['success_page'] ) ? is_page( $give_options['success_page'] ) : false;
+
+	return apply_filters( 'give_is_success_page', $success_page );
 }
 
 /**
@@ -155,7 +156,7 @@ function give_send_to_success_page( $query_string = null ) {
  *
  * Used to redirect a user back to the donation form if there are errors present.
  *
- * @param array $args
+ * @param array|string $args
  *
  * @access public
  * @since  1.0
@@ -257,9 +258,26 @@ function give_get_success_page_url( $query_string = null ) {
 function give_get_failed_transaction_uri( $extras = false ) {
 	$give_options = give_get_settings();
 
-	$uri = ! empty( $give_options['failure_page'] ) ? trailingslashit( get_permalink( $give_options['failure_page'] ) ) : home_url();
+	// Remove question mark.
+	if ( 0 === strpos( $extras, '?' ) ) {
+		$extras = substr( $extras, 1 );
+	}
+
+	$extras_args = wp_parse_args( $extras );
+
+	// Set nonce if payment id exist in extra params.
+	if ( array_key_exists( 'payment-id', $extras_args ) ) {
+		$extras_args['_wpnonce'] = wp_create_nonce( "give-failed-donation-{$extras_args['payment-id']}" );
+		$extras                  = http_build_query( $extras_args );
+	}
+
+	$uri = ! empty( $give_options['failure_page'] ) ?
+		trailingslashit( get_permalink( $give_options['failure_page'] ) ) :
+		home_url();
+
+
 	if ( $extras ) {
-		$uri .= $extras;
+		$uri .= "?{$extras}";
 	}
 
 	return apply_filters( 'give_get_failed_transaction_uri', $uri );
@@ -281,21 +299,29 @@ function give_is_failed_transaction_page() {
 /**
  * Mark payments as Failed when returning to the Failed Donation Page
  *
- * @access      public
- * @since       1.0
- * @return      void
+ * @since  1.0
+ * @since  1.8.16 Add security check
+ *
+ * @return bool
  */
 function give_listen_for_failed_payments() {
 
 	$failed_page = give_get_option( 'failure_page', 0 );
+	$payment_id  = ! empty( $_GET['payment-id'] ) ? absint( $_GET['payment-id'] ) : 0;
+	$nonce       = ! empty( $_GET['_wpnonce'] ) ? give_clean( $_GET['_wpnonce'] ) : false;
 
-	if ( ! empty( $failed_page ) && is_page( $failed_page ) && ! empty( $_GET['payment-id'] ) ) {
-
-		$payment_id = absint( $_GET['payment-id'] );
-		give_update_payment_status( $payment_id, 'failed' );
-
+	// Bailout.
+	if ( ! $failed_page || ! is_page( $failed_page ) || ! $payment_id || ! $nonce ) {
+		return false;
 	}
 
+	// Security check.
+	if ( ! wp_verify_nonce( $nonce, "give-failed-donation-{$payment_id}" ) ) {
+		wp_die( __( 'Nonce verification failed.', 'give' ), __( 'Error', 'give' ) );
+	}
+
+	// Set payment status to failure
+	give_update_payment_status( $payment_id, 'failed' );
 }
 
 add_action( 'template_redirect', 'give_listen_for_failed_payments' );
@@ -317,6 +343,21 @@ function give_get_history_page_uri() {
 }
 
 /**
+ * Determines if we're currently on the History page.
+ *
+ * @since 1.0
+ *
+ * @return bool True if on the History page, false otherwise.
+ */
+function give_is_history_page() {
+	$give_options = give_get_settings();
+
+	$history_page = isset( $give_options['history_page'] ) ? absint( $give_options['history_page'] ) : 0;
+
+	return apply_filters( 'give_is_history_page', is_page( $history_page ) );
+}
+
+/**
  * Check if a field is required
  *
  * @param string $field
@@ -326,7 +367,7 @@ function give_get_history_page_uri() {
  * @since       1.0
  * @return      bool
  */
-function give_field_is_required( $field = '', $form_id ) {
+function give_field_is_required( $field, $form_id ) {
 
 	$required_fields = give_get_required_fields( $form_id );
 
@@ -376,9 +417,36 @@ function give_record_donation_in_log( $give_form_id = 0, $payment_id, $price_id 
  */
 function give_increase_donation_count( $form_id = 0, $quantity = 1 ) {
 	$quantity = (int) $quantity;
-	$form     = new Give_Donate_Form( $form_id );
+
+	/** @var \Give_Donate_Form $form */
+	$form = new Give_Donate_Form( $form_id );
 
 	return $form->increase_sales( $quantity );
+}
+
+/**
+ * Update the goal progress count of a donation form.
+ *
+ * @since 2.4.0
+ *
+ * @param int $form_id Give Form ID
+ *
+ * @return void
+ */
+function give_update_goal_progress( $form_id = 0 ) {
+
+	//Get goal option meta key
+	$is_goal_enabled = give_is_setting_enabled( give_get_meta( $form_id, '_give_goal_option', true, 'disabled' ) );
+
+	// Check, if the form goal is enabled.
+	if ( $is_goal_enabled ) {
+		$goal_stats               = give_goal_progress_stats( $form_id );
+		$form_goal_progress_value = ! empty( $goal_stats['progress'] ) ? $goal_stats['progress'] : 0;
+	} else {
+		$form_goal_progress_value = -1;
+	}
+
+	give_update_meta( $form_id, '_give_form_goal_progress', $form_goal_progress_value );
 }
 
 /**
@@ -393,7 +461,9 @@ function give_increase_donation_count( $form_id = 0, $quantity = 1 ) {
  */
 function give_decrease_donation_count( $form_id = 0, $quantity = 1 ) {
 	$quantity = (int) $quantity;
-	$form     = new Give_Donate_Form( $form_id );
+
+	/** @var \Give_Donate_Form $form */
+	$form = new Give_Donate_Form( $form_id );
 
 	return $form->decrease_sales( $quantity );
 }
@@ -403,31 +473,41 @@ function give_decrease_donation_count( $form_id = 0, $quantity = 1 ) {
  *
  * @since 1.0
  *
+ * @since 2.1 Pass donation id.
+ *
  * @param int $give_form_id Give Form ID
  * @param int $amount       Earnings
+ * @param int $payment_id   Donation ID.
  *
  * @return bool|int
  */
-function give_increase_earnings( $give_form_id = 0, $amount ) {
+function give_increase_earnings( $give_form_id = 0, $amount, $payment_id = 0 ) {
+	/** @var \Give_Donate_Form $form */
 	$form = new Give_Donate_Form( $give_form_id );
 
-	return $form->increase_earnings( $amount );
+	return $form->increase_earnings( $amount, $payment_id );
 }
 
 /**
- * Decreases the total earnings of a form. Primarily for when a donation is refunded.
+ * Decreases the total earnings of a form.
+ *
+ * Primarily for when a donation is refunded.
  *
  * @since 1.0
  *
- * @param int $form_id Give Form ID
- * @param int $amount  Earnings
+ * @since 2.1 Pass donation id.
+ *
+ * @param int $form_id    Give Form ID
+ * @param int $amount     Earnings
+ * @param int $payment_id Donation ID.
  *
  * @return bool|int
  */
-function give_decrease_earnings( $form_id = 0, $amount ) {
+function give_decrease_form_earnings( $form_id = 0, $amount, $payment_id = 0 ) {
+	/** @var \Give_Donate_Form $form */
 	$form = new Give_Donate_Form( $form_id );
 
-	return $form->decrease_earnings( $amount );
+	return $form->decrease_earnings( $amount, $payment_id );
 }
 
 
@@ -443,7 +523,12 @@ function give_decrease_earnings( $form_id = 0, $amount ) {
 function give_get_form_earnings_stats( $form_id = 0 ) {
 	$give_form = new Give_Donate_Form( $form_id );
 
-	return $give_form->earnings;
+	/**
+	 * Filter the form earnings
+	 *
+	 * @since 1.8.17
+	 */
+	return apply_filters( 'give_get_form_earnings_stats', $give_form->earnings, $form_id, $give_form );
 }
 
 
@@ -520,23 +605,35 @@ function give_get_average_monthly_form_earnings( $form_id = 0 ) {
  *
  * @since       1.0
  *
- * @param int $form_id    ID of the donation form.
- * @param int $price_id   ID of the price option.
- * @param int $payment_id payment ID for use in filters ( optional ).
+ * @param int  $form_id      ID of the donation form.
+ * @param int  $price_id     ID of the price option.
+ * @param int  $payment_id   payment ID for use in filters ( optional ).
+ * @param bool $use_fallback Outputs the level amount if no level text is provided.
  *
  * @return string $price_name Name of the price option
  */
-function give_get_price_option_name( $form_id = 0, $price_id = 0, $payment_id = 0 ) {
+function give_get_price_option_name( $form_id = 0, $price_id = 0, $payment_id = 0, $use_fallback = true ) {
 
 	$prices     = give_get_variable_prices( $form_id );
 	$price_name = '';
 
+	if ( false === $prices ) {
+		return $price_name;
+	}
+
 	foreach ( $prices as $price ) {
 
-		if ( intval( $price['_give_id']['level_id'] ) == intval( $price_id ) ) {
+		if ( intval( $price['_give_id']['level_id'] ) === intval( $price_id ) ) {
 
 			$price_text     = isset( $price['_give_text'] ) ? $price['_give_text'] : '';
-			$price_fallback = give_currency_filter( give_format_amount( $price['_give_amount'], array( 'sanitize' => false ) ), '', true );
+			$price_fallback = $use_fallback ?
+				give_currency_filter(
+					give_format_amount(
+						$price['_give_amount'],
+						array( 'sanitize' => false )
+					),
+					array( 'decode_currency' => true )
+				) : '';
 			$price_name     = ! empty( $price_text ) ? $price_text : $price_fallback;
 
 		}
@@ -551,25 +648,28 @@ function give_get_price_option_name( $form_id = 0, $price_id = 0, $payment_id = 
  *
  * @since 1.0
  *
- * @param int $form_id ID of the form
+ * @param int  $form_id   ID of the form
+ * @param bool $formatted Flag to decide which type of price range string return
  *
  * @return string $range A fully formatted price range
  */
-function give_price_range( $form_id = 0 ) {
+function give_price_range( $form_id = 0, $formatted = true ) {
 	$low        = give_get_lowest_price_option( $form_id );
 	$high       = give_get_highest_price_option( $form_id );
 	$order_type = ! empty( $_REQUEST['order'] ) ? $_REQUEST['order'] : 'asc';
 
 	$range = sprintf(
-		'<span class="give_price_range_%1$s">%2$s</span>
-				<span class="give_price_range_sep">&nbsp;&ndash;&nbsp;</span>
-				<span class="give_price_range_%3$s">%4$s</span>',
+		'<span class="give_price_range_%1$s">%2$s</span><span class="give_price_range_sep">&nbsp;&ndash;&nbsp;</span><span class="give_price_range_%3$s">%4$s</span>',
 		'asc' === $order_type ? 'low' : 'high',
 		'asc' === $order_type ? give_currency_filter( give_format_amount( $low, array( 'sanitize' => false ) ) ) : give_currency_filter( give_format_amount( $high, array( 'sanitize' => false ) ) ),
 		'asc' === $order_type ? 'high' : 'low',
 		'asc' === $order_type ? give_currency_filter( give_format_amount( $high, array( 'sanitize' => false ) ) ) : give_currency_filter( give_format_amount( $low, array( 'sanitize' => false ) ) )
 
 	);
+
+	if ( ! $formatted ) {
+		$range = wp_strip_all_tags( $range );
+	}
 
 	return apply_filters( 'give_price_range', $range, $form_id, $low, $high );
 }
@@ -715,8 +815,28 @@ function give_get_form_minimum_price( $form_id = 0 ) {
 
 	$form = new Give_Donate_Form( $form_id );
 
-	return $form->__get( 'minimum_price' );
+	return $form->get_minimum_price();
 
+}
+
+/**
+ * Return the maximum price amount of form.
+ *
+ * @since 2.1
+ *
+ * @param int $form_id Donate Form ID
+ *
+ * @return bool|float
+ */
+function give_get_form_maximum_price( $form_id = 0 ) {
+
+	if ( empty( $form_id ) ) {
+		return false;
+	}
+
+	$form = new Give_Donate_Form( $form_id );
+
+	return $form->get_maximum_price();
 }
 
 /**
@@ -821,6 +941,25 @@ function give_get_form_goal( $form_id = 0 ) {
 }
 
 /**
+ * Returns the goal format of a form
+ *
+ * @since 2.0
+ *
+ * @param int $form_id ID number of the form to retrieve a goal for
+ *
+ * @return mixed string|int Goal of the form
+ */
+function give_get_form_goal_format( $form_id = 0 ) {
+
+	if ( empty( $form_id ) ) {
+		return false;
+	}
+
+	return give_get_meta( $form_id, '_give_goal_format', true );
+
+}
+
+/**
  * Display/Return a formatted goal for a donation form
  *
  * @since 1.0
@@ -836,10 +975,20 @@ function give_goal( $form_id = 0, $echo = true ) {
 		$form_id = get_the_ID();
 	}
 
-	$goal = give_get_form_goal( $form_id );
+	$goal        = give_get_form_goal( $form_id );
+	$goal_format = give_get_form_goal_format( $form_id );
 
-	$goal           = apply_filters( 'give_form_goal', give_maybe_sanitize_amount( $goal ), $form_id );
-	$formatted_goal = '<span class="give_price" id="give_price_' . $form_id . '">' . $goal . '</span>';
+	if ( 'donation' === $goal_format ) {
+		$goal = "{$goal} donations";
+	} else {
+		$goal = apply_filters( 'give_form_goal', give_maybe_sanitize_amount( $goal ), $form_id );
+	}
+
+	$formatted_goal = sprintf(
+		'<span class="give_price" id="give_price_%1$s">%2$s</span>',
+		$form_id,
+		$goal
+	);
 	$formatted_goal = apply_filters( 'give_form_price_after_html', $formatted_goal, $form_id, $goal );
 
 	if ( $echo ) {
@@ -908,7 +1057,9 @@ function _give_get_prefill_form_field_values( $form_id ) {
 
 	if ( is_user_logged_in() ) :
 		$donor_data    = get_userdata( get_current_user_id() );
-		$donor_address = get_user_meta( get_current_user_id(), '_give_user_address', true );
+		$donor         = new Give_Donor( get_current_user_id(), true );
+		$donor_address = $donor->get_donor_address();
+		$company_name  = $donor->get_company_name();
 
 		$logged_in_donor_info = array(
 			// First name.
@@ -917,26 +1068,32 @@ function _give_get_prefill_form_field_values( $form_id ) {
 			// Last name.
 			'give_last'       => $donor_data->last_name,
 
+			// Title Prefix.
+			'give_title'      => $donor->get_meta( '_give_donor_title_prefix', true ),
+
+			// Company name.
+			'company_name'    => $company_name,
+
 			// Email.
 			'give_email'      => $donor_data->user_email,
 
 			// Street address 1.
-			'card_address'    => ( ! empty( $donor_address['line1'] ) ? $donor_address['line1'] : '' ),
+			'card_address'    => $donor_address['line1'],
 
 			// Street address 2.
-			'card_address_2'  => ( ! empty( $donor_address['line2'] ) ? $donor_address['line2'] : '' ),
+			'card_address_2'  => $donor_address['line2'],
 
 			// Country.
-			'billing_country' => ( ! empty( $donor_address['country'] ) ? $donor_address['country'] : '' ),
+			'billing_country' => $donor_address['country'],
 
 			// State.
-			'card_state'      => ( ! empty( $donor_address['state'] ) ? $donor_address['state'] : '' ),
+			'card_state'      => $donor_address['state'],
 
 			// City.
-			'card_city'       => ( ! empty( $donor_address['city'] ) ? $donor_address['city'] : '' ),
+			'card_city'       => $donor_address['city'],
 
 			// Zipcode
-			'card_zip'        => ( ! empty( $donor_address['zip'] ) ? $donor_address['zip'] : '' ),
+			'card_zip'        => $donor_address['zip'],
 		);
 	endif;
 
@@ -959,4 +1116,475 @@ function _give_get_prefill_form_field_values( $form_id ) {
 
 	// Output.
 	return wp_parse_args( $give_donor_info_in_session, $logged_in_donor_info );
+}
+
+/**
+ * Get donor count of form
+ *
+ * @since 2.1.0
+ *
+ * @param int   $form_id
+ * @param array $args
+ *
+ * @return int
+ */
+function give_get_form_donor_count( $form_id, $args = array() ) {
+	global $wpdb;
+
+	$cache_key   = Give_Cache::get_key( "form_donor_count_{$form_id}", $args, false );
+	$donor_count = absint( Give_Cache::get_db_query( $cache_key ) );
+
+	if ( $form_id && ! $donor_count ) {
+		// Set arguments.
+		$args = wp_parse_args(
+			$args,
+			array(
+				'unique' => true,
+			)
+		);
+
+		$donation_meta_table  = Give()->payment_meta->table_name;
+		$donation_id_col_name = Give()->payment_meta->get_meta_type() . '_id';
+
+		$distinct = $args['unique'] ? 'DISTINCT meta_value' : 'meta_value';
+
+		$query = $wpdb->prepare(
+			"
+			SELECT COUNT({$distinct})
+			FROM {$donation_meta_table}
+			WHERE meta_key=%s
+			AND {$donation_id_col_name} IN(
+				SELECT {$donation_id_col_name}
+				FROM {$donation_meta_table} as pm
+				INNER JOIN {$wpdb->posts} as p
+				ON pm.{$donation_id_col_name}=p.ID
+				WHERE pm.meta_key=%s
+				AND pm.meta_value=%s
+				AND p.post_status=%s
+			)
+			",
+			'_give_payment_donor_id',
+			'_give_payment_form_id',
+			$form_id,
+			'publish'
+		);
+
+		$donor_count = absint( $wpdb->get_var( $query ) );
+	}
+
+
+	/**
+	 * Filter the donor count
+	 *
+	 * @since 2.1.0
+	 */
+	$donor_count = apply_filters( 'give_get_form_donor_count', $donor_count, $form_id, $args );
+
+	return $donor_count;
+}
+
+/**
+ * Verify the form status.
+ *
+ * @param int $form_id Donation Form ID.
+ *
+ * @since 2.1
+ *
+ * @return void
+ */
+function give_set_form_closed_status( $form_id ) {
+
+	// Bailout.
+	if ( empty( $form_id ) ) {
+		return;
+	}
+
+	$open_form       = false;
+	$is_goal_enabled = give_is_setting_enabled( give_get_meta( $form_id, '_give_goal_option', true, 'disabled' ) );
+
+	// Proceed, if the form goal is enabled.
+	if ( $is_goal_enabled ) {
+
+		$close_form_when_goal_achieved = give_is_setting_enabled( give_get_meta( $form_id, '_give_close_form_when_goal_achieved', true, 'disabled' ) );
+
+		// Proceed, if close form when goal achieved option is enabled.
+		if ( $close_form_when_goal_achieved ) {
+
+			$form                = new Give_Donate_Form( $form_id );
+			$goal_progress_stats = give_goal_progress_stats( $form );
+
+			// Verify whether the form is closed or not after processing data.
+			$closed = $goal_progress_stats['raw_goal'] <= $goal_progress_stats['raw_actual'];
+
+			// Update form meta if verified that the form is closed.
+			if ( $closed ) {
+				give_update_meta( $form_id, '_give_form_status', 'closed' );
+			} else {
+				$open_form = true;
+			}
+		} else {
+			$open_form = true;
+		}
+	} else {
+		$open_form = true;
+	}
+
+	// If $open_form is true, then update form status to open.
+	if ( $open_form ) {
+		give_update_meta( $form_id, '_give_form_status', 'open' );
+	}
+}
+
+/**
+ * Show Form Goal Stats in Admin ( Listing and Detail page )
+ *
+ * @param int $form_id Form ID.
+ *
+ * @since 2.1.0
+ *
+ * @return string
+ */
+function give_admin_form_goal_stats( $form_id ) {
+
+	$html             = '';
+	$goal_stats       = give_goal_progress_stats( $form_id );
+	$percent_complete = round( ( $goal_stats['raw_actual'] / $goal_stats['raw_goal'] ), 3 ) * 100;
+
+	$html .= sprintf(
+		'<div class="give-admin-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="%1$s">
+<span style="width:%1$s%%;"></span>
+</div>',
+		esc_attr( $goal_stats['progress'] )
+	);
+
+	$html .= sprintf(
+		( 'percentage' !== $goal_stats['format'] ) ?
+			'<div class="give-goal-text"><span>%1$s</span> %2$s <a href="%3$s">%4$s</a> %5$s ' :
+			'<div class="give-goal-text"><a href="%3$s">%1$s </a>',
+		( 'percentage' !== $goal_stats['format'] ) ? $goal_stats['actual'] : $percent_complete . '%',
+		( 'percentage' !== $goal_stats['format'] ) ? __( 'of', 'give' ) : '',
+		esc_url( admin_url( "post.php?post={$form_id}&action=edit&give_tab=donation_goal_options" ) ),
+		$goal_stats['goal'],
+		( 'donors' === $goal_stats['format'] ? __( 'Donors', 'give' ) : ( 'donation' === $goal_stats['format'] ? __( 'Donations', 'give' ) : '' ) )
+	);
+
+	if ( $goal_stats['raw_actual'] >= $goal_stats['raw_goal'] ) {
+		$html .= sprintf( '<span class="give-admin-goal-achieved"><span class="dashicons dashicons-star-filled"></span> %s</span>', __( 'Goal achieved', 'give' ) );
+	}
+
+	$html .= '</div>';
+
+
+	return $html;
+}
+
+/**
+ * Get the default donation form's level id.
+ *
+ * @since 2.2.0
+ *
+ * @param integer $form_id Donation Form ID.
+ *
+ * @return null | array
+ */
+function give_form_get_default_level( $form_id ) {
+	$default_level = null;
+
+	// If donation form has variable prices.
+	if ( give_has_variable_prices( $form_id ) ) {
+		/**
+		 * Filter the variable pricing
+		 *
+		 *
+		 * @since      1.0
+		 * @deprecated 2.2 Use give_get_donation_levels filter instead of give_form_variable_prices.
+		 *                 Check Give_Donate_Form::get_prices().
+		 *
+		 * @param array $prices Array of variable prices.
+		 * @param int   $form   Form ID.
+		 */
+		$prices = apply_filters( 'give_form_variable_prices', give_get_variable_prices( $form_id ), $form_id );
+
+		// Go through each of the level and get the default level id.
+		foreach ( $prices as $level ) {
+			if (
+				isset( $level['_give_default'] )
+				&& $level['_give_default'] === 'default'
+			) {
+				$default_level = $level;
+			}
+		}
+	}
+
+	/**
+	 * Filter the default donation level id.
+	 *
+	 * @since 2.2.0
+	 *
+	 * @param array   $default_level Default level price data.
+	 * @param integer $form_id       Donation form ID.
+	 */
+	return apply_filters( 'give_form_get_default_level', $default_level, $form_id );
+}
+
+/**
+ * Get the default level id.
+ *
+ * @since 2.2.0
+ *
+ * @param array|integer   $price_or_level_id Price level data.
+ * @param boolean|integer $form_id           Donation Form ID.
+ *
+ * @return boolean
+ */
+function give_is_default_level_id( $price_or_level_id, $form_id = 0 ) {
+	$is_default = false;
+
+	if (
+		! empty( $form_id )
+		&& is_numeric( $price_or_level_id )
+	) {
+		// Get default level id.
+		$form_price_data = give_form_get_default_level( $form_id );
+
+		$is_default = ! is_null( $form_price_data ) && ( $price_or_level_id === absint( $form_price_data['_give_id']['level_id'] ) );
+	}
+
+	$is_default = false === $is_default && is_array( $price_or_level_id ) ?
+		( isset( $price_or_level_id['_give_default'] ) && $price_or_level_id['_give_default'] === 'default' )
+		: $is_default;
+
+	/**
+	 * Allow developers to modify the default level id checks.
+	 *
+	 * @since 2.2.0
+	 *
+	 * @param bool          $is_default        True if it is default price level id otherwise false.
+	 * @param array|integer $price_or_level_id Price Data.
+	 */
+	return apply_filters( 'give_is_default_level_id', $is_default, $price_or_level_id );
+}
+
+
+/**
+ * Get Name Title Prefixes (a.k.a. Salutation) value.
+ *
+ * @param int $form_id Donation Form ID.
+ *
+ * @since 2.2.0
+ *
+ * @return mixed
+ */
+function give_get_name_title_prefixes( $form_id = 0 ) {
+
+	$name_title_prefix = give_is_name_title_prefix_enabled( $form_id );
+	$title_prefixes    = give_get_option( 'title_prefixes', give_get_default_title_prefixes() );
+
+	// If form id exists, then fetch form specific title prefixes.
+	if ( intval( $form_id ) > 0 && $name_title_prefix ) {
+
+		$form_title_prefix = give_get_meta( $form_id, '_give_name_title_prefix', true );
+		if ( 'global' !== $form_title_prefix ) {
+			$form_title_prefixes = give_get_meta( $form_id, '_give_title_prefixes', true, give_get_default_title_prefixes() );
+
+			// Check whether the form based title prefixes exists or not.
+			if ( is_array( $form_title_prefixes ) && count( $form_title_prefixes ) > 0 ) {
+				$title_prefixes = $form_title_prefixes;
+			}
+		}
+	}
+
+	return $title_prefixes;
+}
+
+/**
+ * Check whether the name title prefix is enabled or not.
+ *
+ * @param int    $form_id Donation Form ID.
+ * @param string $status  Status to set status based on option value.
+ *
+ * @since 2.2.0
+ *
+ * @return bool
+ */
+function give_is_name_title_prefix_enabled( $form_id = 0, $status = '' ) {
+	if ( empty( $status ) ) {
+		$status = array( 'required', 'optional' );
+	} else {
+		$status = array( $status );
+	}
+
+	$title_prefix_status = give_is_setting_enabled( give_get_option( 'name_title_prefix' ), $status );
+
+	if ( intval( $form_id ) > 0 ) {
+		$form_title_prefix = give_get_meta( $form_id, '_give_name_title_prefix', true );
+
+		if ( 'disabled' === $form_title_prefix ) {
+			$title_prefix_status = false;
+		} elseif ( in_array( $form_title_prefix, $status, true ) ) {
+			$title_prefix_status = give_is_setting_enabled( $form_title_prefix, $status );
+		}
+	}
+
+	return $title_prefix_status;
+
+}
+
+/**
+ * Get Donor Name with Title Prefix
+ *
+ * @param int|Give_Donor $donor Donor Information.
+ *
+ * @since 2.2.0
+ *
+ * @return object
+ */
+function give_get_name_with_title_prefixes( $donor ) {
+
+	// Prepare Give_Donor object, if $donor is numeric.
+	if ( is_numeric( $donor ) ) {
+		$donor = new Give_Donor( $donor );
+	}
+
+	$title_prefix = Give()->donor_meta->get_meta( $donor->id, '_give_donor_title_prefix', true );
+
+	// Update Donor name, if non empty title prefix.
+	if ( ! empty( $title_prefix ) ) {
+		$donor->name = give_get_donor_name_with_title_prefixes( $title_prefix, $donor->name );
+	}
+
+	return $donor;
+}
+
+/**
+ * This function will generate donor name with title prefix if it is required.
+ *
+ * @param string $title_prefix Title Prefix of Donor
+ * @param string $name         Donor Name.
+ *
+ * @since 2.2.0
+ *
+ * @return string
+ */
+function give_get_donor_name_with_title_prefixes( $title_prefix, $name ) {
+
+	$donor_name = $name;
+
+	if ( ! empty( $title_prefix ) && ! empty( $name ) ) {
+		$donor_name = "{$title_prefix} {$name}";
+	}
+
+	return trim( $donor_name );
+}
+
+/**
+ * This function will fetch the default list of title prefixes.
+ *
+ * @since 2.2.0
+ *
+ * @return array
+ */
+function give_get_default_title_prefixes() {
+	/**
+	 * Filter the data
+	 * Set default title prefixes.
+	 *
+	 * @since 2.2.0
+	 */
+	return apply_filters(
+		'give_get_default_title_prefixes',
+		array(
+			'Mr.'  => __( 'Mr.', 'give' ),
+			'Mrs.' => __( 'Mrs.', 'give' ),
+			'Ms.'  => __( 'Ms.', 'give' ),
+		)
+	);
+}
+
+/**
+ * This function will check whether the name title prefix field is required or not.
+ *
+ * @param int $form_id Donation Form ID.
+ *
+ * @since 2.2.0
+ *
+ * @return bool
+ */
+function give_is_name_title_prefix_required( $form_id = 0 ) {
+
+	// Bail out, if name title prefix is not enabled.
+	if ( ! give_is_name_title_prefix_enabled( $form_id ) ) {
+		return false;
+	}
+
+	$status      = array( 'optional' );
+	$is_optional = give_is_setting_enabled( give_get_option( 'name_title_prefix' ), $status );
+
+	if ( intval( $form_id ) > 0 ) {
+		$form_title_prefix = give_get_meta( $form_id, '_give_name_title_prefix', true );
+
+		if ( 'required' === $form_title_prefix ) {
+			$is_optional = false;
+		} elseif ( 'optional' === $form_title_prefix ) {
+			$is_optional = true;
+		}
+	}
+
+	return ( ! $is_optional );
+}
+
+/**
+ * Deletes form meta when the form is permanently deleted from the trash.
+ *
+ * @since 2.3.0
+ *
+ * @param integer $id Donation Form ID which needs to be deleted.
+ *
+ * @return void
+ */
+function give_handle_form_meta_on_delete( $id ) {
+
+	global $wpdb;
+
+	$form     = get_post( $id );
+	$get_data = give_clean( $_GET );
+
+	if (
+		'give_forms' === $form->post_type &&
+		'trash' === $form->post_status &&
+		(
+			( isset( $get_data['action'] ) && 'delete' === $get_data['action'] ) ||
+			! empty( $get_data['delete_all'] )
+		)
+	) {
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->formmeta} WHERE form_id = '%d'", $form->ID ) );
+	}
+}
+
+add_action( 'before_delete_post', 'give_handle_form_meta_on_delete', 10, 1 );
+
+
+/**
+ * Get list of default param of form shrtcode.
+ *
+ * @since 2.4.1
+ * @return array
+ */
+function give_get_default_form_shortcode_args() {
+	$default = array(
+		'id'                    => '',
+		'show_title'            => true,
+		'show_goal'             => true,
+		'show_content'          => '',
+		'float_labels'          => '',
+		'display_style'         => '',
+		'continue_button_title' => '',
+	);
+
+	/**
+	 * Fire the filter
+	 */
+	$default = apply_filters( 'give_get_default_form_shortcode_args', $default );
+
+	return $default;
 }

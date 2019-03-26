@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -93,7 +93,9 @@ class Give_Email_Notification_Util {
 	 * @return bool
 	 */
 	public static function is_notification_status_editable( Give_Email_Notification $email ) {
-		return $email->config['notification_status_editable'];
+		$user_can_edit = $email->config['notification_status_editable'];
+
+		return (bool) $user_can_edit;
 	}
 
 	/**
@@ -152,6 +154,20 @@ class Give_Email_Notification_Util {
 		return $email->config['show_on_emails_setting_page'];
 	}
 
+	/**
+	 * Check if we can use form email options.
+	 *
+	 * @since  2.0
+	 * @access public
+	 *
+	 * @param Give_Email_Notification $email
+	 * @param int $form_id
+	 *
+	 * @return bool
+	 */
+	public static function can_use_form_email_options( Give_Email_Notification $email, $form_id = null ){
+		return give_is_setting_enabled( give_get_meta( $form_id, '_give_email_options', true ) );
+	}
 
 	/**
 	 * Check email active or not.
@@ -171,9 +187,20 @@ class Give_Email_Notification_Util {
 		$notification_status = empty( $form_id )
 			? give_is_setting_enabled( $notification_status )
 			: give_is_setting_enabled( give_get_option( "{$email->config['id']}_notification", $email->config['notification_status'] ) ) && give_is_setting_enabled( $notification_status, array( 'enabled', 'global' ) );
-			// To check if email notification active or not on per form basis, email notification must be globally active other it will consider as disable.
+			// To check if email notification is active or not on a per-form basis, email notification must be globally active—otherwise it will be considered disabled.
 
-		return $notification_status;
+		/**
+		 * Filter to modify is email active notification
+		 *
+		 * @since 2.1.3
+		 *
+		 * @param bool $notification_status True if notification is enable and false when disable
+		 * @param Give_Email_Notification $email Class instances Give_Email_Notification.
+		 * @param int                     $form_id Donation Form ID.
+		 *
+		 * @param bool $notification_status True if notification is enable and false when disable
+		 */
+		return apply_filters( "give_{$email->config['id']}_is_email_notification_active", $notification_status, $email, $form_id );
 	}
 
 	/**
@@ -262,9 +289,21 @@ class Give_Email_Notification_Util {
 
 		if (
 			! empty( $form_id )
-			&& give_is_setting_enabled( give_get_meta( $form_id, Give_Email_Setting_Field::get_prefix( $email, $form_id ) . 'notification', true, 'global' ) )
+			&& give_is_setting_enabled(
+				give_get_meta(
+					$form_id,
+					Give_Email_Setting_Field::get_prefix( $email, $form_id ) . 'notification',
+					true,
+					'global'
+				)
+			)
 		) {
 			$option_value = get_post_meta( $form_id, $option_name, true );
+
+			// Get only email field value from recipients setting.
+			if( Give_Email_Setting_Field::get_prefix( $email, $form_id ) . 'recipient' === $option_name ) {
+				$option_value = wp_list_pluck( $option_value, 'email' );
+			}
 		}
 
 		$option_value = empty( $option_value ) ? $default : $option_value;
@@ -275,5 +314,27 @@ class Give_Email_Notification_Util {
 		 * @since 2.0
 		 */
 		return apply_filters( 'give_email_setting_value', $option_value, $option_name, $email, $form_id, $default );
+	}
+
+
+	/**
+	 * Get email logo.
+	 *
+	 * @since  2.1.5
+	 *
+	 * @access public
+	 *
+	 * @param integer $form_id FOrm ID.
+	 *
+	 * @return string
+	 */
+	public static function get_email_logo( $form_id ) {
+
+		// Email logo tag.
+		$header_img = $form_id && give_is_setting_enabled( give_get_meta( $form_id, '_give_email_options', true ) )
+			? give_get_meta( $form_id, '_give_email_logo', true )
+			: give_get_option( 'email_logo', '' );
+
+		return $header_img;
 	}
 }

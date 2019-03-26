@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Admin/Payments
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
 */
@@ -24,9 +24,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @return      void
 */
 function give_payment_history_page() {
-
-	$give_payment = get_post_type_object( 'give_payment' );
-
 	if ( isset( $_GET['view'] ) && 'view-payment-details' == $_GET['view'] ) {
 		require_once GIVE_PLUGIN_DIR . 'includes/admin/payments/view-payment-details.php';
 	} else {
@@ -36,7 +33,7 @@ function give_payment_history_page() {
 	?>
 	<div class="wrap">
 
-		<h1><?php echo get_admin_page_title(); ?></h1>
+		<h1 class="wp-heading-inline"><?php echo get_admin_page_title(); ?></h1>
 
 		<?php
 		/**
@@ -46,6 +43,7 @@ function give_payment_history_page() {
 		 */
 		do_action( 'give_payments_page_top' );
 		?>
+		<hr class="wp-header-end">
 
 		<form id="give-payments-advanced-filter" method="get" action="<?php echo admin_url( 'edit.php?post_type=give_forms&page=give-payment-history' ); ?>">
 			<input type="hidden" name="post_type" value="give_forms" />
@@ -57,7 +55,13 @@ function give_payment_history_page() {
 		<form id="give-payments-filter" method="get" action="<?php echo admin_url( 'edit.php?post_type=give_forms&page=give-payment-history' ); ?>">
 			<input type="hidden" name="post_type" value="give_forms" />
 			<input type="hidden" name="page" value="give-payment-history" />
-			<?php $payments_table->display() ?>
+			<?php
+			if ( ! empty( $_GET['donor'] ) ) {
+				echo sprintf( '<input type="hidden" name="donor" value="%s"/>', absint( $_GET['donor'] ) );
+			}
+
+			$payments_table->display();
+			?>
 		</form>
 
 		<?php
@@ -83,7 +87,7 @@ function give_payment_history_page() {
  * @param $title
  * @return string
  */
-function give_view_order_details_title( $admin_title, $title ) {
+function give_view_donation_details_title( $admin_title, $title ) {
 
 	if ( 'give_forms_page_give-payment-history' != get_current_screen()->base ) {
 		return $admin_title;
@@ -116,7 +120,7 @@ function give_view_order_details_title( $admin_title, $title ) {
 
 	return $title;
 }
-add_filter( 'admin_title', 'give_view_order_details_title', 10, 2 );
+add_filter( 'admin_title', 'give_view_donation_details_title', 10, 2 );
 
 /**
  * Intercept default Edit post links for Give payments and rewrite them to the View Order Details screen.

@@ -34,7 +34,13 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		$this->assertEquals( 'Admin', $firstname );
 
 		/*
-		 * Case 3: First name with filter
+		 * Case 3: First name from donor_id.
+		 */
+		$firstname = give_email_tag_first_name( array( 'donor_id' => 1 ) );
+		$this->assertEquals( 'Admin', $firstname );
+
+		/*
+		 * Case 4: First name with filter
 		 */
 		add_filter( 'give_email_tag_first_name', array( $this, 'give_first_name' ), 10, 2 );
 
@@ -225,7 +231,7 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		$payment_id      = Give_Helper_Payment::create_simple_payment();
 		$billing_address = give_email_tag_billing_address( array( 'payment_id' => $payment_id ) );
 
-		$this->assertEquals( '', trim( str_replace( "\n", '', $billing_address ) ) );
+		$this->assertEquals( ',', trim( str_replace( "\n", '', $billing_address ) ) );
 
 		/*
 		 * Case 2: Billing Address with filter
@@ -314,7 +320,7 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		$payment_id = Give_Helper_Payment::create_simple_payment();
 		$amount     = give_email_tag_amount( array( 'payment_id' => $payment_id ) );
 
-		$this->assertEquals( '$20.00', $amount );
+		$this->assertEquals( '$20.00', htmlentities( $amount, ENT_COMPAT, 'UTF-8' ) );
 
 		/*
 		 * Case 2: Amount with filter
@@ -352,8 +358,10 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 	 * @cover give_email_tag_payment_id
 	 */
 	function test_give_email_tag_payment_id() {
+		give_update_option( 'sequential-ordering_status', 'disabled' );
+
 		/*
-		 * Case 1: Payment ID from payment.
+		 * Case 1: Payment ID from payment without sequential feature.
 		 */
 		$expected_payment_id = Give_Helper_Payment::create_simple_payment();
 		$actual_payment_id   = give_email_tag_payment_id( array( 'payment_id' => $expected_payment_id ) );
@@ -361,7 +369,7 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		$this->assertEquals( $expected_payment_id, $actual_payment_id );
 
 		/*
-		 * Case 2: Payment ID with filter
+		 * Case 2: Payment ID with filter and without sequential feature.
 		 */
 		add_filter( 'give_email_tag_payment_id', array( $this, 'give_payment_id' ), 10, 2 );
 
@@ -369,6 +377,17 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		$this->assertEquals( 'GIVE-1 [Pending]', $actual_payment_id );
 
 		remove_filter( 'give_email_tag_payment_id', array( $this, 'give_payment_id' ), 10 );
+
+		give_update_option( 'sequential-ordering_status', 'enabled' );
+
+
+		/*
+		 * Case 3: Payment ID from payment.
+		 */
+		$expected_payment_id = Give_Helper_Payment::create_simple_payment();
+		$actual_payment_id   = give_email_tag_payment_id( array( 'payment_id' => $expected_payment_id ) );
+
+		$this->assertEquals( Give()->seq_donation_number->get_serial_code($expected_payment_id), $actual_payment_id );
 	}
 
 	/**
@@ -387,50 +406,6 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		}
 
 		return $payment_id;
-	}
-
-	/**
-	 * Test function give_email_tag_receipt_id
-	 *
-	 * @since 2.0
-	 * @cover give_email_tag_receipt_id
-	 */
-	function test_give_email_tag_receipt_id() {
-		/*
-		 * Case 1: Receipt ID from payment.
-		 */
-		$receipt_id = Give_Helper_Payment::create_simple_payment();
-		$receipt_id = give_email_tag_receipt_id( array( 'receipt_id' => $receipt_id ) );
-
-		$this->assertEquals( '', $receipt_id );
-
-		/*
-		 * Case 2: Receipt ID with filter
-		 */
-		add_filter( 'give_email_tag_receipt_id', array( $this, 'give_receipt_id' ), 10, 2 );
-
-		$receipt_id = give_email_tag_receipt_id( array( 'user_id' => 1 ) );
-		$this->assertEquals( 'GIVE-1', $receipt_id );
-
-		remove_filter( 'give_email_tag_receipt_id', array( $this, 'give_receipt_id' ), 10 );
-	}
-
-	/**
-	 * Add give_email_tag_receipt_id filter to give_email_tag_receipt_id function.
-	 *
-	 * @since 2.0
-	 *
-	 * @param string $receipt_id
-	 * @param array  $tag_args
-	 *
-	 * @return string
-	 */
-	public function give_receipt_id( $receipt_id, $tag_args ) {
-		if ( array_key_exists( 'user_id', $tag_args ) ) {
-			$receipt_id = 'GIVE-1';
-		}
-
-		return $receipt_id;
 	}
 
 	/**
@@ -578,15 +553,18 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		 */
 		$payment       = Give_Helper_Payment::create_simple_payment();
 		$payment_total = give_email_tag_payment_total( array( 'payment_id' => $payment ) );
+		$payment_total = html_entity_decode( $payment_total, ENT_COMPAT, 'UTF-8' );
 
-		$this->assertEquals( '$20', html_entity_decode( $payment_total) );
+		$this->assertEquals( '$20.00', htmlentities( $payment_total, ENT_COMPAT, 'UTF-8' ) );
 
 		/*
 		 * Case 2: Payment total with filter
 		 */
 		add_filter( 'give_email_tag_payment_total', array( $this, 'give_payment_total' ) );
 		$payment_total = give_email_tag_payment_total( array( 'payment_id' => $payment ) );
-		$this->assertEquals( '$30', html_entity_decode( $payment_total  ));
+		$payment_total = html_entity_decode( $payment_total, ENT_COMPAT, 'UTF-8' );
+
+		$this->assertEquals( '$30', htmlentities( $payment_total, ENT_COMPAT, 'UTF-8' ) );
 		remove_filter( 'give_email_tag_payment_total', array( $this, 'give_payment_total' ), 10 );
 	}
 
@@ -647,16 +625,24 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 	 * Test function give_email_tag_receipt_link_url
 	 *
 	 * @since 2.0
-	 * @cover give_get_receipt_url
 	 * @cover give_email_tag_receipt_link_url
 	 */
 	function test_give_email_tag_receipt_link_url() {
 		$payment = Give_Helper_Payment::create_simple_payment();
 
-		$receipt_link_url = give_email_tag_receipt_link_url( array( 'payment_id' => $payment ) );
+		$receipt_link_url = give_email_tag_receipt_link_url(
+			array(
+				'payment_id' => $payment,
+			)
+		);
 
 		$this->assertRegExp(
-			'/give_action=view_receipt/',
+			'/action=view_in_browser/',
+			$receipt_link_url
+		);
+		
+		$this->assertRegExp(
+			'/_give_hash=/',
 			$receipt_link_url
 		);
 	}
@@ -671,48 +657,102 @@ class Tests_Email_Tags extends Give_Unit_Test_Case {
 		$payment = Give_Helper_Payment::create_simple_payment();
 
 
-		$receipt_link = give_email_tag_receipt_link( array( 'payment_id' => $payment ) );
-
+		$receipt_link = give_email_tag_receipt_link(
+			array(
+				'payment_id' => $payment,
+			)
+		);
+		
 		$this->assertRegExp(
-			'/give_action=view_receipt">View it in your browser &raquo;<\/a>/',
+			'/>View the receipt in your browser &raquo;<\/a>/',
 			$receipt_link
 		);
+		
+		$this->assertRegExp(
+			'/<a href=".+?\?action=view_in_browser/',
+			$receipt_link
+		);
+		
+		$this->assertRegExp(
+			'/_give_hash=/',
+			$receipt_link
+		);
+		
 	}
 
 
 	/**
-	 * Test function give_email_tag_email_access_link
+	 * Test function give_email_tag_donation_history_link
 	 *
 	 * @since 2.0
-	 * @cover give_email_tag_email_access_link
+	 * @cover give_email_tag_donation_history_link
 	 */
-	function test_give_email_tag_email_access_link() {
+	function test_give_email_tag_donation_history_link() {
 		// Create new table columns manually.
 		// Are db columns setup?
-		if( ! give_update_option( 'email_access_installed' ) ) {
+		if( ! Give()->donors->does_column_exist( 'token' ) ) {
 			Give()->email_access->create_columns();
 		}
 
 		Give_Helper_Payment::create_simple_payment();
 
-		$link = give_email_tag_email_access_link( array( 'user_id' => 1 ) );
+		$link = give_email_tag_donation_history_link( array( 'user_id' => 1 ) );
 
 		$this->assertRegExp(
-			'/target="_blank">Access Donation Details &raquo;<\/a>/',
+			'/target="_blank">View your donation history &raquo;<\/a>/',
 			$link
 		);
 
 		$this->assertRegExp(
-			'/<a href="\?give_nl=/',
+			'/<a href=".+?\?give_nl=/',
 			$link
 		);
 
-		$link = give_email_tag_email_access_link( array( 'user_id' => 1, 'email_content_type' => 'text/plain' ) );
+		$link = give_email_tag_donation_history_link( array( 'user_id' => 1, 'email_content_type' => 'text/plain' ) );
 
 		$this->assertRegExp(
-			'/Access Donation Details: \?give_nl=/',
+			'/View your donation history: .+?\?give_nl=/',
 			$link
 		);
 
+	}
+
+	/**
+	 * Test meta data email tag
+	 *
+	 * Note: this tag render donor, donation and form dynamic dynamically
+	 *
+	 * @since 2.1.0
+	 */
+	function test_give_email_tag_metadata() {
+		$payment_id = Give_Helper_Payment::create_simple_payment();
+		$donor_id   = give_get_payment_donor_id( $payment_id );
+
+		/*
+		 * Case 1: donor meta data tests.
+		 */
+		$donor_tag_args = array( 'donor_id' => $donor_id );
+		$this->assertEquals( 'Admin', __give_render_metadata_email_tag( '{meta_donor__give_donor_first_name}', $donor_tag_args ) );
+		$this->assertEquals( 'User', __give_render_metadata_email_tag( '{meta_donor__give_donor_last_name}', $donor_tag_args ) );
+
+		Give()->donor_meta->update_meta( $donor_id, '_give_stripe_customer_id', 2 );
+
+		$this->assertEquals( 2, __give_render_metadata_email_tag( '{meta_donor__give_stripe_customer_id}', $donor_tag_args ) );
+		$this->assertEquals( 1, __give_render_metadata_email_tag( '{meta_donor_id}', $donor_tag_args ) );
+		$this->assertEquals( 1, __give_render_metadata_email_tag( '{meta_donor_user_id}', $donor_tag_args ) );
+		$this->assertEquals( 'Admin User', __give_render_metadata_email_tag( '{meta_donor_name}', $donor_tag_args ) );
+		$this->assertEquals( 'admin@example.org', __give_render_metadata_email_tag( '{meta_donor_email}', $donor_tag_args ) );
+
+
+		$this->assertEquals( 'Admin User', __give_render_metadata_email_tag( '{meta_donor_name}', array( 'user_id' => 1 ) ) );
+		$this->assertEquals( 'Admin User', __give_render_metadata_email_tag( '{meta_donor_name}', array( 'payment_id' => $payment_id ) ) );
+
+		/*
+		 * Case 2: donation meta data tests.
+		 */
+
+		/*
+		 * Case 3: donation form meta data tests.
+		*/
 	}
 }

@@ -2,11 +2,11 @@
 /**
  * Exports Functions
  *
- * These are functions are used for exporting data from Give
+ * These functions are used for exporting data from Give
  *
  * @package     Give
  * @subpackage  Admin/Export
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  */
 
@@ -31,7 +31,10 @@ function give_do_ajax_export() {
 
 	$_REQUEST = $form = (array) $form;
 
-	if ( ! wp_verify_nonce( $_REQUEST['give_ajax_export'], 'give_ajax_export' ) ) {
+	if (
+		! wp_verify_nonce( $_REQUEST['give_ajax_export'], 'give_ajax_export' )
+		|| ! current_user_can( 'manage_give_settings' )
+	) {
 		die( '-2' );
 	}
 
@@ -98,7 +101,7 @@ function give_do_ajax_export() {
 		);
 
 	} else {
-		
+
 		$args = array_merge( $_REQUEST, array(
 			'step'        => $step,
 			'class'       => $class,
@@ -119,3 +122,34 @@ function give_do_ajax_export() {
 }
 
 add_action( 'wp_ajax_give_do_ajax_export', 'give_do_ajax_export' );
+
+
+/**
+ * This function is used to define default columns for export.
+ *
+ * Note: This function is for internal purposes only.
+ * Use filter "give_export_donors_get_default_columns" instead.
+ *
+ * @since 2.2.6
+ *
+ * @return array
+ */
+function give_export_donors_get_default_columns() {
+
+	$default_columns = array(
+		'full_name'          => __( 'Name', 'give' ),
+		'email'              => __( 'Email', 'give' ),
+		'address'            => __( 'Address', 'give' ),
+		'userid'             => __( 'User ID', 'give' ),
+		'donor_created_date' => __( 'Donor Created Date', 'give' ),
+		'donations'          => __( 'Number of donations', 'give' ),
+		'donation_sum'       => __( 'Total Donated', 'give' ),
+	);
+
+	/**
+	 * This filter will be used to define default columns for export.
+	 *
+	 * @since 2.2.6
+	 */
+	return apply_filters( 'give_export_donors_get_default_columns', $default_columns );
+}

@@ -5,7 +5,7 @@
  * This class handles batch processing of recounting earnings and stats
  *
  * @subpackage  Admin/Tools/Give_Tools_Recount_Stats
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.5
  */
@@ -48,7 +48,16 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 	 * @since  1.5
 	 * @var integer
 	 */
-	protected $form_id = null;
+	protected $form_id = 0;
+
+	/**
+	 * Constructor.
+	 */
+	public function __construct( $_step = 1 ) {
+		parent::__construct( $_step );
+
+		$this->is_writable = true;
+	}
 
 	/**
 	 * Get the Export Data
@@ -59,6 +68,7 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 	 * @return bool
 	 */
 	public function get_data() {
+
 		$accepted_statuses = apply_filters( 'give_recount_accepted_statuses', array( 'publish' ) );
 
 		if ( $this->step == 1 ) {
@@ -88,18 +98,32 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 
 		if ( $payments ) {
 			foreach ( $payments as $payment ) {
-				//Ensure acceptible status only
+
+				// Ensure acceptable status only.
 				if ( ! in_array( $payment->post_status, $accepted_statuses ) ) {
 					continue;
 				}
 
-				//Ensure only payments for this form are counted
+				// Ensure only payments for this form are counted.
 				if ( $payment->form_id != $this->form_id ) {
 					continue;
 				}
 
+				/**
+				 * Filter the payment amount.
+				 *
+				 * @since 2.1
+				 */
+				$earning_amount = apply_filters(
+					'give_donation_amount',
+					give_format_amount( $payment->total, array( 'donation_id' => $payment->ID ) ),
+					$payment->total,
+					$payment->ID,
+					array( 'type' => 'stats', 'currency' => false, 'amount' => false )
+				);
+
 				$totals['sales'] ++;
-				$totals['earnings'] += $payment->total;
+				$totals['earnings'] += (float) give_maybe_sanitize_amount( $earning_amount );
 
 			}
 
@@ -197,11 +221,7 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 	}
 
 	public function headers() {
-		ignore_user_abort( true );
-
-		if ( ! give_is_func_disabled( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
-			set_time_limit( 0 );
-		}
+		give_ignore_user_abort();
 	}
 
 	/**
@@ -232,7 +252,16 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 		global $wpdb;
 		$value = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM $wpdb->options WHERE option_name = '%s'", $key ) );
 
-		return empty( $value ) ? false : maybe_unserialize( $value );
+		if ( empty( $value ) ) {
+			return false;
+		}
+
+		$maybe_json = json_decode( $value );
+		if ( ! is_null( $maybe_json ) ) {
+			$value = json_decode( $value, true );
+		}
+
+		return $value;
 	}
 
 	/**
@@ -248,7 +277,7 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 	private function store_data( $key, $value ) {
 		global $wpdb;
 
-		$value = maybe_serialize( $value );
+		$value = is_array( $value ) ? wp_json_encode( $value ) : esc_attr( $value );
 
 		$data = array(
 			'option_name'  => $key,
@@ -279,4 +308,19 @@ class Give_Tools_Recount_Form_Stats extends Give_Batch_Export {
 		$wpdb->delete( $wpdb->options, array( 'option_name' => $key ) );
 	}
 
+	/**
+	 * Unset the properties specific to the donors export.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param array $request
+	 * @param Give_Batch_Export $export
+	 */
+	public function unset_properties( $request, $export ) {
+		if ( $export->done ) {
+			// Delete all the donation ids.
+			$this->delete_data( 'give_temp_recount_form_stats' );
+			$this->delete_data( 'give_recount_total_' . $this->form_id );
+		}
+	}
 }

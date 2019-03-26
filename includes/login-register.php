@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions/Login
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -21,14 +21,15 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @global       $give_login_redirect
  * @global       $give_logout_redirect
  *
- * @param string $login_redirect Login redirect page URL
+ * @param string $login_redirect  Login redirect page URL
  * @param string $logout_redirect Logout redirect page URL
  *
  * @return string Login form
  */
 function give_login_form( $login_redirect = '', $logout_redirect = '' ) {
+
 	if ( empty( $login_redirect ) ) {
-		$login_redirect = add_query_arg( 'give-login-success', 'true', give_get_current_page_url() );
+		$login_redirect = add_query_arg( 'give-login-success', 'true', give_get_history_page_uri() );
 	}
 
 	if ( empty( $logout_redirect ) ) {
@@ -50,7 +51,7 @@ function give_login_form( $login_redirect = '', $logout_redirect = '' ) {
 	give_get_template(
 		'shortcode-login',
 		array(
-			'give_login_redirect' => $login_redirect,
+			'give_login_redirect'  => $login_redirect,
 			'give_logout_redirect' => $logout_redirect,
 		)
 	);
@@ -97,15 +98,25 @@ function give_register_form( $redirect = '' ) {
  * @return void
  */
 function give_process_login_form( $data ) {
+
 	if ( wp_verify_nonce( $data['give_login_nonce'], 'give-login-nonce' ) ) {
+
+		// Set Receipt Access Session.
+		if ( ! empty( $_GET['donation_id'] ) ) {
+			Give()->session->set( 'receipt_access', true );
+		}
+
 		$user_data = get_user_by( 'login', $data['give_user_login'] );
+
 		if ( ! $user_data ) {
 			$user_data = get_user_by( 'email', $data['give_user_login'] );
 		}
+
 		if ( $user_data ) {
-			$user_ID    = $user_data->ID;
-			$user_email = $user_data->user_email;
-			if ( wp_check_password( $data['give_user_pass'], $user_data->user_pass, $user_ID ) ) {
+
+			$user_id = $user_data->ID;
+
+			if ( wp_check_password( $data['give_user_pass'], $user_data->user_pass, $user_id ) ) {
 				give_log_user_in( $user_data->ID, $data['give_user_login'], $data['give_user_pass'] );
 			} else {
 				give_set_error( 'password_incorrect', __( 'The password you entered is incorrect.', 'give' ) );
@@ -113,10 +124,12 @@ function give_process_login_form( $data ) {
 		} else {
 			give_set_error( 'username_incorrect', __( 'The username you entered does not exist.', 'give' ) );
 		}
-		// Check for errors and redirect if none present
+
+		// Check for errors and redirect if none present.
 		$errors = give_get_errors();
+
 		if ( ! $errors ) {
-			$redirect = apply_filters( 'give_login_redirect', $data['give_login_redirect'], $user_ID );
+			$redirect = apply_filters( 'give_login_redirect', $data['give_login_redirect'], $user_id );
 			wp_redirect( $redirect );
 			give_die();
 		}
@@ -190,7 +203,7 @@ function give_log_user_in( $user_id, $user_login, $user_pass ) {
 	 *
 	 * @since 1.0
 	 *
-	 * @param string  $user_login Username.
+	 * @param string $user_login Username.
 	 * @param WP_User $$user      WP_User object of the logged-in user.
 	 */
 	do_action( 'wp_login', $user_login, get_userdata( $user_id ) );
@@ -294,3 +307,102 @@ function give_process_register_form( $data ) {
 }
 
 add_action( 'give_user_register', 'give_process_register_form' );
+
+
+/**
+ * Email access login form.
+ *
+ * @since 1.8.17
+ *
+ * @return bool
+ */
+function give_email_access_login() {
+
+	// Verify nonce.
+	if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'give' ) ) {
+		return false;
+	}
+
+	// Need email to proceed.
+	$email = isset( $_POST['give_email'] ) ? give_clean( $_POST['give_email'] ) : '';
+	if ( empty( $email ) ) {
+		give_set_error( 'give_empty_email', __( 'Please enter the email address you used for your donation.', 'give' ) );
+	}
+
+	$recaptcha_key    = give_get_option( 'recaptcha_key' );
+	$recaptcha_secret = give_get_option( 'recaptcha_secret' );
+	$enable_recaptcha = ( give_is_setting_enabled( give_get_option( 'enable_recaptcha' ) ) ) && ! empty( $recaptcha_key ) && ! empty( $recaptcha_secret ) ? true : false;
+
+	// Use reCAPTCHA.
+	if ( $enable_recaptcha ) {
+
+		$args = array(
+			'secret'   => $recaptcha_secret,
+			'response' => $_POST['g-recaptcha-response'],
+			'remoteip' => $_POST['give_ip'],
+		);
+
+		if ( ! empty( $args['response'] ) ) {
+			$request = wp_remote_post( 'https://www.google.com/recaptcha/api/siteverify', array(
+				'body' => $args,
+			) );
+			if ( ! is_wp_error( $request ) || 200 == wp_remote_retrieve_response_code( $request ) ) {
+
+				$response = json_decode( $request['body'], true );
+
+				// reCAPTCHA fail.
+				if ( ! $response['success'] ) {
+					give_set_error( 'give_recaptcha_test_failed', apply_filters( 'give_recaptcha_test_failed_message', __( 'reCAPTCHA test failed.', 'give' ) ) );
+				}
+			} else {
+
+				// Connection issue.
+				give_set_error( 'give_recaptcha_connection_issue', apply_filters( 'give_recaptcha_connection_issue_message', __( 'Unable to connect to reCAPTCHA server.', 'give' ) ) );
+
+			}  // End if().
+		} else {
+
+			give_set_error( 'give_recaptcha_failed', apply_filters( 'give_recaptcha_failed_message', __( 'It looks like the reCAPTCHA test has failed.', 'give' ) ) );
+
+		}  // End if().
+	}  // End if().
+
+	// If no errors or only expired token key error - then send email.
+	if ( ! give_get_errors() ) {
+
+		$donor = Give()->donors->get_donor_by( 'email', $email );
+		Give()->email_access->init();
+
+		// Verify that donor object is present and donor is connected with its user profile or not.
+		if ( is_object( $donor ) ) {
+
+			// Verify that email can be sent.
+			if ( ! Give()->email_access->can_send_email( $donor->id ) ) {
+
+				$_POST['email-access-exhausted'] = true;
+
+				return false;
+
+			} else {
+				// Send the email. Requests not
+				$email_sent = Give()->email_access->send_email( $donor->id, $donor->email );
+
+				if ( ! $email_sent ) {
+					give_set_error( 'give_email_access_send_issue', __( 'Unable to send email. Please try again.', 'give' ) );
+					return false;
+				}
+
+				$_POST['email-access-sent'] = true;
+
+				return true;
+			}
+		} else {
+
+			give_set_error( 'give-no-donations', __( 'We were unable to find any donations associated with the email address provided. Please try again using another email.', 'give' ) );
+
+		}
+	} // End if().
+
+}
+
+add_action( 'give_email_access_form_login', 'give_email_access_login' );

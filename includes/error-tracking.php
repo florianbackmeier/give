@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions/Errors
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 1.0
  * @uses  Give_Session::get()
- * @return mixed array if errors are present, false if none found
+ * @return array|bool array if errors are present, false if none found
  */
 function give_get_errors() {
 	return Give()->session->get( 'give_errors' );
@@ -85,7 +85,15 @@ function give_clear_errors() {
 function give_unset_error( $error_id ) {
 	$errors = give_get_errors();
 	if ( $errors ) {
-		unset( $errors[ $error_id ] );
+		/**
+		 * Check If $error_id exists in the array.
+		 * If exists then unset it.
+		 *
+		 * @since 1.8.13
+		 */
+		if ( isset( $errors[ $error_id ] ) ) {
+			unset( $errors[ $error_id ] );
+		}
 		Give()->session->set( 'give_errors', $errors );
 	}
 }

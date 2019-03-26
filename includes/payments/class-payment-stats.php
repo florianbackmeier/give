@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Stats
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -58,6 +58,7 @@ class Give_Payment_Stats extends Give_Stats {
 			'end_date'   => $this->end_date,
 			'fields'     => 'ids',
 			'number'     => - 1,
+			'output'     => ''
 		);
 
 		if ( ! empty( $form_id ) ) {
@@ -86,6 +87,7 @@ class Give_Payment_Stats extends Give_Stats {
 	 * @return float|int                Total amount of donations based on the passed arguments.
 	 */
 	public function get_earnings( $form_id = 0, $start_date = false, $end_date = false, $gateway_id = false ) {
+		global $wpdb;
 		$this->setup_dates( $start_date, $end_date );
 
 		// Make sure start date is valid
@@ -105,6 +107,7 @@ class Give_Payment_Stats extends Give_Stats {
 			'end_date'   => $this->end_date,
 			'fields'     => 'ids',
 			'number'     => - 1,
+			'output'     => '',
 		);
 
 
@@ -131,7 +134,7 @@ class Give_Payment_Stats extends Give_Stats {
 		$args = apply_filters( 'give_stats_earnings_args', $args );
 		$key  = Give_Cache::get_key( 'give_stats', $args );
 
-		//Set transient for faster stats
+		// Set transient for faster stats.
 		$earnings = Give_Cache::get( $key );
 
 		if ( false === $earnings ) {
@@ -142,18 +145,57 @@ class Give_Payment_Stats extends Give_Stats {
 			$earnings        = 0;
 
 			if ( ! empty( $payments ) ) {
-				foreach ( $payments as $payment ) {
-					$earnings += give_get_payment_amount( $payment->ID );
+				$donation_id_col = Give()->payment_meta->get_meta_type() . '_id';
+				$query = "SELECT {$donation_id_col} as id, meta_value as total
+					FROM {$wpdb->donationmeta}
+					WHERE meta_key='_give_payment_total'
+					AND {$donation_id_col} IN ('". implode( '\',\'', $payments ) ."')";
+
+				$payments = $wpdb->get_results($query, ARRAY_A);
+
+				if( ! empty( $payments ) ) {
+					foreach ( $payments as $payment ) {
+						$currency_code = give_get_payment_currency_code( $payment['id'] );
+
+						/**
+						 * Filter the donation amount
+						 * Note: this filter documented in payments/functions.php:give_donation_amount()
+						 *
+						 * @since 2.1
+						 */
+						$formatted_amount = apply_filters(
+							'give_donation_amount',
+							give_format_amount(  $payment['total'], array( 'donation_id' =>  $payment['id'] ) ),
+							$payment['total'],
+							$payment['id'],
+							array( 'type' => 'stats', 'currency'=> false, 'amount' => false )
+						);
+
+						$earnings += (float) give_maybe_sanitize_amount( $formatted_amount, array( 'currency' => $currency_code  ) );
+					}
 				}
 
 			}
 
-			// Cache the results for one hour
+			// Cache the results for one hour.
 			Give_Cache::set( $key, give_sanitize_amount_for_db( $earnings ), 60 * 60 );
 		}
 
+		/**
+		 * Filter the earnings.
+		 *
+		 * @since 1.8.17
+		 *
+		 * @param  float       $earnings   Earning amount.
+		 * @param  int         $form_id    Donation Form ID.
+		 * @param  string|bool $start_date Earning start date.
+		 * @param  string|bool $end_date   Earning end date.
+		 * @param  string|bool $gateway_id Payment gateway id.
+		 */
+		$earnings = apply_filters( 'give_get_earnings', $earnings, $form_id, $start_date, $end_date, $gateway_id );
+
 		//return earnings
-		return round( $earnings, give_currency_decimal_filter() );
+		return round( $earnings, give_get_price_decimals( $form_id ) );
 
 	}
 

@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -38,7 +38,7 @@ function give_email_notification_row_actions_callback( $row_actions, $email ) {
 				add_query_arg( array(
 					'give_action'  => 'send_preview_email',
 					'email_type' => $email->config['id'],
-					'give-message' => 'sent-test-email',
+					'give-messages[]' => 'sent-test-email',
 				) ), 'give-send-preview-email' ),
 			__( 'Send test email', 'give' )
 		);

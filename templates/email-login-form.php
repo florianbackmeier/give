@@ -2,105 +2,120 @@
 /**
  * Session Refresh Form
  *
- * This template is used to display an email form which will when submitted send an update donation receipt and also refresh the users session
+ * This template is used to display an email form which will when submitted send an update donation receipt and also
+ * refresh the users session
  */
 
-$show_form = true;
-$email     = isset( $_POST['give_email'] ) ? $_POST['give_email'] : '';
+global $give_access_form_outputted;
 
-// reCAPTCHA
+// Only output the form once.
+if ( $give_access_form_outputted ) {
+	return;
+}
+
+$is_form_required = true;
 $recaptcha_key    = give_get_option( 'recaptcha_key' );
 $recaptcha_secret = give_get_option( 'recaptcha_secret' );
-$enable_recaptcha = ( ! empty( $recaptcha_key ) && ! empty( $recaptcha_secret ) ) ? true : false;
+$enable_recaptcha = ( give_is_setting_enabled( give_get_option( 'enable_recaptcha' ) ) ) && ! empty( $recaptcha_key ) && ! empty( $recaptcha_secret ) ? true : false;
 
-// Form submission
-if ( is_email( $email ) && wp_verify_nonce( $_POST['_wpnonce'], 'give' ) ) {
+// Email already sent?
+if ( isset( $_POST['email-access-sent'] ) ) {
 
-	// Use reCAPTCHA
-	if ( $enable_recaptcha ) {
+	/**
+	 * Filter to modify access mail send notice
+	 *
+	 * @since 2.1.3
+	 *
+	 * @param string Send notice message for email access.
+	 *
+	 * @return  string $message Send notice message for email access.
+	 */
+	$message = (string) apply_filters( 'give_email_access_mail_send_notice', __( 'Please check your email and click on the link to access your complete donation history.', 'give' ) );
 
-		$args = array(
-			'secret'   => $recaptcha_secret,
-			'response' => $_POST['g-recaptcha-response'],
-			'remoteip' => $_POST['give_ip'],
-		);
+	Give()->notices->print_frontend_notice(
+		$message,
+		true,
+		'success'
+	);
 
-		if ( ! empty( $args['response'] ) ) {
-			$request = wp_remote_post( 'https://www.google.com/recaptcha/api/siteverify', array(
-				'body' => $args,
-			) );
-			if ( ! is_wp_error( $request ) || 200 == wp_remote_retrieve_response_code( $request ) ) {
+	$is_form_required = false;
 
-				$response = json_decode( $request['body'], true );
+} elseif ( isset( $_POST['email-access-exhausted'] ) ) {
 
-				// reCAPTCHA fail
-				if ( ! $response['success'] ) {
-					give_set_error( 'give_recaptcha_test_failed', apply_filters( 'give_recaptcha_test_failed_message', esc_html__( 'reCAPTCHA test failed.', 'give' ) ) );
-				}
-			} else {
+	$value = Give()->email_access->verify_throttle / 60;
 
-				// Connection issue
-				give_set_error( 'give_recaptcha_connection_issue', apply_filters( 'give_recaptcha_connection_issue_message', esc_html__( 'Unable to connect to reCAPTCHA server.', 'give' ) ) );
+	/**
+	 * Filter to modify email access exceed notices message.
+	 *
+	 * @since 2.1.3
+	 *
+	 * @param string $message email access exceed notices message
+	 * @param int $value email access exceed times
+	 *
+	 * @return string $message email access exceed notices message
+	 */
+	$message = (string) apply_filters(
+		'give_email_access_requests_exceed_notice',
+		sprintf(
+			__( 'Too many access email requests detected. Please wait %s before requesting a new donation history access link.', 'give' ),
+			sprintf( _n( '%s minute', '%s minutes', $value, 'give' ), $value )
+		),
+		$value
+	);
 
-			}
-		} // End if().
-		else {
+	// Too many emails sent?
+	Give()->notices->print_frontend_notice(
+		$message,
+		true,
+		'error'
+	);
 
-			give_set_error( 'give_recaptcha_failed', apply_filters( 'give_recaptcha_failed_message', esc_html__( 'It looks like the reCAPTCHA test has failed.', 'give' ) ) );
+	$is_form_required = false;
+}
 
-		}
-	}
+if ( true === $is_form_required ) {
 
-	// If no errors or only expired token key error - then send email
-	if ( ! give_get_errors() ) {
+	/**
+	 * Perform processing for email access form login.
+	 *
+	 * @since 1.8.17
+	 */
+	do_action( 'give_email_access_form_login' );
 
-		$donor = Give()->donors->get_donor_by( 'email', $email );
+	// Print any other messages & errors.
+	Give()->notices->render_frontend_notices();
 
-
-		if ( isset( $donor->id ) ) {
-			if ( Give()->email_access->can_send_email( $donor->id ) ) {
-				/**
-				 *  Fire the action
-				 *
-				 * @since 2.0
-				 *
-				 * @param int    $customer ::$id
-				 * @param string $email
-				 */
-				do_action( 'give_email-access_email_notification', $donor->id, $email );
-				$show_form = false;
-			}
-		} else {
-			give_set_error( 'give_no_donor_email_exists', apply_filters( 'give_no_donor_email_exists_message', __( 'It looks like that donor email address does not exist.', 'give' ) ) );
-		}
-	}
-}// End if().
-
-// Print any messages & errors
-Give()->notices->render_frontend_notices( 0 );
-
-// Show the email login form?
-if ( $show_form ) {
-?>
-
+	?>
 	<div class="give-form">
+		<form method="post" id="give-email-access-form">
+			<p>
+				<?php
+				/**
+				 * Filter to modify email access welcome message
+				 *
+				 * @since 2.1.3
+				 *
+				 * @param string $message email access welcome message
+				 *
+				 * @return string $message email access welcome message
+				 */
+				echo esc_html( apply_filters( 'give_email_access_welcome_message', __( 'Please verify your email to access your donation history.', 'give' ) ) );
+				?>
+			</p>
 
-		<?php
-		if ( ! give_get_errors() ) {
-			Give()->notices->print_frontend_notice( apply_filters( 'give_email_access_message', __( 'Please enter the email address you used for your donation. A verification email containing an access link will be sent to you.', 'give' ) ), true );
-		} ?>
-
-		<form method="post" action="" id="give-email-access-form">
-			<label for="give-email"><?php esc_html__( 'Donation Email:', 'give' ); ?></label>
-			<input id="give-email" type="email" name="give_email" value="" placeholder="<?php esc_attr_e( 'Your donation email', 'give' ); ?>"/>
+			<label for="give-email"><?php esc_attr_e( 'Donation Email:', 'give' ); ?></label>
+			<input id="give-email" type="email" name="give_email" value=""
+					placeholder="<?php esc_attr_e( 'Email Address', 'give' ); ?>"/>
 			<input type="hidden" name="_wpnonce" value="<?php echo wp_create_nonce( 'give' ); ?>"/>
+			<input type="hidden" name="give_action" value="email_access_form_login"/>
+			<input type="hidden" name="give_access_page" value="<?php the_ID(); ?>"/>
 
 			<?php
 			// Enable reCAPTCHA?
-			if ( $enable_recaptcha ) { ?>
-
+			if ( $enable_recaptcha ) :
+				?>
 				<script>
-					//IP verify for reCAPTCHA
+					// IP verify for reCAPTCHA.
 					(function ($) {
 						$(function () {
 							$.getJSON('https://api.ipify.org?format=jsonp&callback=?', function (json) {
@@ -113,24 +128,13 @@ if ( $show_form ) {
 				<script src='https://www.google.com/recaptcha/api.js'></script>
 				<div class="g-recaptcha" data-sitekey="<?php echo $recaptcha_key; ?>"></div>
 				<input type="hidden" name="give_ip" class="give_ip" value=""/>
-			<?php } ?>
+			<?php endif; ?>
 
-			<input type="submit" class="give-submit" value="<?php esc_attr_e( 'Email access token', 'give' ); ?>"/>
+			<input type="submit" class="give-submit" value="<?php esc_attr_e( 'Verify Email', 'give' ); ?>"/>
 		</form>
 	</div>
+	<?php
+}
 
-<?php
-} else {
-
-	Give()->notices->print_frontend_notice(
-		sprintf(
-			/* translators: %s: user email address */
-			esc_html__( 'An email with an access link has been sent to %s.', 'give' ),
-			$email
-		),
-		true,
-		'success'
-	);
-
-}// End if().
-?>
+// The form has been output.
+$give_access_form_outputted = true;

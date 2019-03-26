@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_MetaBox_Form_Data
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU Public License
  * @since       1.8
  */
@@ -61,13 +61,16 @@ class Give_MetaBox_Form_Data {
 		// add_filter( 'give_metabox_form_data_settings', array( $this, 'cmb2_metabox_settings' ) );
 		// Add offline donations options.
 		add_filter( 'give_metabox_form_data_settings', array( $this, 'add_offline_donations_setting_tab' ), 0, 1 );
-	}
 
+		// Maintain active tab query parameter after save.
+		add_filter( 'redirect_post_location', array( $this, 'maintain_active_tab' ), 10, 2 );
+	}
 
 	/**
 	 * Setup metabox related data.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return void
 	 */
 	function setup() {
@@ -78,29 +81,13 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get metabox settings
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return array
 	 */
 	function get_settings() {
-		$post_id               = give_get_admin_post_id();
-		$price                 = give_get_form_price( $post_id );
-		$custom_amount_minimum = give_get_form_minimum_price( $post_id );
-		$goal                  = give_format_amount( give_get_form_goal( $post_id ), array( 'sanitize' => false ) );
-		$price_placeholder     = give_format_decimal( '1.00', false, false );
-
-		// No empty prices - min. 1.00 for new forms
-		if ( empty( $price ) && is_null( $post_id ) ) {
-			$price = '1.00';
-		}
-
-		// Min. $1.00 for new forms
-		if ( empty( $custom_amount_minimum ) ) {
-			$custom_amount_minimum = '1.00';
-		}
-
-		// Format amounts.
-		$price = give_format_amount( $price, array( 'sanitize' => false ) );
-		$custom_amount_minimum = give_format_amount( $custom_amount_minimum, array( 'sanitize' => false ) );
+		$post_id           = give_get_admin_post_id();
+		$price_placeholder = give_format_decimal( '1.00', false, false );
 
 		// Start with an underscore to hide fields from custom fields list
 		$prefix = '_give_';
@@ -114,16 +101,16 @@ class Give_MetaBox_Form_Data {
 				'title'     => __( 'Donation Options', 'give' ),
 				'icon-html' => '<span class="give-icon give-icon-heart"></span>',
 				'fields'    => apply_filters( 'give_forms_donation_form_metabox_fields', array(
-					// Donation Option
+					// Donation Option.
 					array(
 						'name'        => __( 'Donation Option', 'give' ),
 						'description' => __( 'Do you want this form to have one set donation price or multiple levels (for example, $10, $20, $50)?', 'give' ),
 						'id'          => $prefix . 'price_option',
 						'type'        => 'radio_inline',
-						'default'     => 'set',
+						'default'     => 'multi',
 						'options'     => apply_filters( 'give_forms_price_options', array(
-							'set'   => __( 'Set Donation', 'give' ),
 							'multi' => __( 'Multi-level Donation', 'give' ),
+							'set'   => __( 'Set Donation', 'give' ),
 						) ),
 					),
 					array(
@@ -134,24 +121,24 @@ class Give_MetaBox_Form_Data {
 						'data_type'   => 'price',
 						'attributes'  => array(
 							'placeholder' => $price_placeholder,
-							'value'       => $price,
 							'class'       => 'give-money-field',
 						),
 					),
-					// Display Style
+					// Display Style.
 					array(
-						'name'        => __( 'Display Style', 'give' ),
-						'description' => __( 'Set how the donations levels will display on the form.', 'give' ),
-						'id'          => $prefix . 'display_style',
-						'type'        => 'radio_inline',
-						'default'     => 'buttons',
-						'options'     => array(
+						'name'          => __( 'Display Style', 'give' ),
+						'description'   => __( 'Set how the donations levels will display on the form.', 'give' ),
+						'id'            => $prefix . 'display_style',
+						'type'          => 'radio_inline',
+						'default'       => 'buttons',
+						'options'       => array(
 							'buttons'  => __( 'Buttons', 'give' ),
 							'radios'   => __( 'Radios', 'give' ),
 							'dropdown' => __( 'Dropdown', 'give' ),
 						),
+						'wrapper_class' => 'give-hidden',
 					),
-					// Custom Amount
+					// Custom Amount.
 					array(
 						'name'        => __( 'Custom Amount', 'give' ),
 						'description' => __( 'Do you want the user to be able to input their own donation amount?', 'give' ),
@@ -164,39 +151,46 @@ class Give_MetaBox_Form_Data {
 						),
 					),
 					array(
-						'name'        => __( 'Minimum Amount', 'give' ),
-						'description' => __( 'Enter the minimum custom donation amount.', 'give' ),
-						'id'          => $prefix . 'custom_amount_minimum',
-						'type'        => 'text_small',
-						'data_type'   => 'price',
-						'attributes'  => array(
+						'name'          => __( 'Donation Limit', 'give' ),
+						'description'   => __( 'Set the minimum and maximum amount for all gateways.', 'give' ),
+						'id'            => $prefix . 'custom_amount_range',
+						'type'          => 'donation_limit',
+						'wrapper_class' => 'give-hidden',
+						'data_type'     => 'price',
+						'attributes'    => array(
 							'placeholder' => $price_placeholder,
-							'value'       => $custom_amount_minimum,
 							'class'       => 'give-money-field',
 						),
-					),
-					array(
-						'name'        => __( 'Custom Amount Text', 'give' ),
-						'description' => __( 'This text appears as a label below the custom amount field for set donation forms. For multi-level forms the text will appear as it\'s own level (ie button, radio, or select option).', 'give' ),
-						'id'          => $prefix . 'custom_amount_text',
-						'type'        => 'text_medium',
-						'attributes'  => array(
-							'rows'        => 3,
-							'placeholder' => esc_attr__( 'Give a Custom Amount', 'give' ),
+						'options'       => array(
+							'display_label' => __( 'Donation Limits: ', 'give' ),
+							'minimum'       => give_format_decimal( '1.00', false, false ),
+							'maximum'       => give_format_decimal( '999999.99', false, false ),
 						),
 					),
-					// Donation Levels: Repeatable CMB2 Group
 					array(
-						'id'      => $prefix . 'donation_levels',
-						'type'    => 'group',
-						'options' => array(
+						'name'          => __( 'Custom Amount Text', 'give' ),
+						'description'   => __( 'This text appears as a label below the custom amount field for set donation forms. For multi-level forms the text will appear as it\'s own level (ie button, radio, or select option).', 'give' ),
+						'id'            => $prefix . 'custom_amount_text',
+						'type'          => 'text_medium',
+						'attributes'    => array(
+							'rows'        => 3,
+							'placeholder' => __( 'Give a Custom Amount', 'give' ),
+						),
+						'wrapper_class' => 'give-hidden',
+					),
+					// Donation Levels.
+					array(
+						'id'            => $prefix . 'donation_levels',
+						'type'          => 'group',
+						'options'       => array(
 							'add_button'    => __( 'Add Level', 'give' ),
 							'header_title'  => __( 'Donation Level', 'give' ),
 							'remove_button' => '<span class="dashicons dashicons-no"></span>',
 						),
+						'wrapper_class' => 'give-hidden',
 						// Fields array works the same, except id's only need to be unique for this group.
 						// Prefix is not needed.
-						'fields'  => apply_filters( 'give_donation_levels_table_row', array(
+						'fields'        => apply_filters( 'give_donation_levels_table_row', array(
 							array(
 								'name' => __( 'ID', 'give' ),
 								'id'   => $prefix . 'id',
@@ -261,28 +255,90 @@ class Give_MetaBox_Form_Data {
 							'default' => 'onpage',
 						),
 						array(
-							'id'         => $prefix . 'reveal_label',
-							'name'       => __( 'Continue Button', 'give' ),
-							'desc'       => __( 'The button label for displaying the additional payment fields.', 'give' ),
+							'id'            => $prefix . 'reveal_label',
+							'name'          => __( 'Continue Button', 'give' ),
+							'desc'          => __( 'The button label for displaying the additional payment fields.', 'give' ),
+							'type'          => 'text_small',
+							'attributes'    => array(
+								'placeholder' => __( 'Donate Now', 'give' ),
+							),
+							'wrapper_class' => 'give-hidden',
+						),
+						array(
+							'id'         => $prefix . 'checkout_label',
+							'name'       => __( 'Submit Button', 'give' ),
+							'desc'       => __( 'The button label for completing a donation.', 'give' ),
 							'type'       => 'text_small',
 							'attributes' => array(
-								'placeholder' => esc_attr__( 'Donate Now', 'give' ),
+								'placeholder' => __( 'Donate Now', 'give' ),
 							),
 						),
-							array(
-								'id'         => $prefix . 'checkout_label',
-								'name'       => __( 'Submit Button', 'give' ),
-								'desc'       => __( 'The button label for completing a donation.', 'give' ),
-								'type'       => 'text_small',
-								'attributes' => array(
-									'placeholder' => __( 'Donate Now', 'give' ),
-								),
-							),
 						array(
 							'name' => __( 'Default Gateway', 'give' ),
 							'desc' => __( 'By default, the gateway for this form will inherit the global default gateway (set under Give > Settings > Payment Gateways). This option allows you to customize the default gateway for this form only.', 'give' ),
 							'id'   => $prefix . 'default_gateway',
 							'type' => 'default_gateway',
+						),
+						array(
+							'name'    => __( 'Name Title Prefix', 'give' ),
+							'desc'    => __( 'Do you want to add a name title prefix dropdown field before the donor\'s first name field? This will display a dropdown with options such as Mrs, Miss, Ms, Sir, and Dr for donor to choose from.', 'give' ),
+							'id'      => $prefix . 'name_title_prefix',
+							'type'    => 'radio_inline',
+							'options' => array(
+								'global' => __( 'Global Option', 'give' ),
+								'required' => __( 'Required', 'give' ),
+								'optional' => __( 'Optional', 'give' ),
+								'disabled' => __( 'Disabled', 'give' ),
+							),
+							'default' => 'global',
+						),
+						array(
+							'name'          => __( 'Title Prefixes', 'give' ),
+							'desc'          => __( 'Add or remove salutations from the dropdown using the field above.', 'give' ),
+							'id'            => $prefix . 'title_prefixes',
+							'type'          => 'chosen',
+							'data_type'     => 'multiselect',
+							'style'         => 'width: 100%',
+							'wrapper_class' => 'give-hidden give-title-prefixes-wrap',
+							'options'       => give_get_default_title_prefixes(),
+						),
+						array(
+							'name'    => __( 'Company Donations', 'give' ),
+							'desc'    => __( 'Do you want a Company field to appear after First Name and Last Name?', 'give' ),
+							'id'      => $prefix . 'company_field',
+							'type'    => 'radio_inline',
+							'default' => 'global',
+							'options' => array(
+								'global'   => __( 'Global Option', 'give' ),
+								'required' => __( 'Required', 'give' ),
+								'optional' => __( 'Optional', 'give' ),
+								'disabled' => __( 'Disabled', 'give' ),
+
+							),
+						),
+						array(
+							'name'    => __( 'Anonymous Donations', 'give' ),
+							'desc'    => __( 'Do you want to provide donors the ability mark themselves anonymous while giving. This will prevent their information from appearing publicly on your website but you will still receive their information for your records in the admin panel.', 'give' ),
+							'id'      => "{$prefix}anonymous_donation",
+							'type'    => 'radio_inline',
+							'default' => 'global',
+							'options' => array(
+								'global'   => __( 'Global Option', 'give' ),
+								'enabled'  => __( 'Enabled', 'give' ),
+								'disabled' => __( 'Disabled', 'give' ),
+							),
+						),
+						array(
+							'name'    => __( 'Donor Comments', 'give' ),
+							'desc'    => __( 'Do you want to provide donors the ability to add a comment to their donation? The comment will display publicly on the donor wall if they do not select to give anonymously.', 'give' ),
+							'id'      => "{$prefix}donor_comment",
+							'type'    => 'radio_inline',
+							'default' => 'global',
+							'options' => array(
+								'global'   => __( 'Global Option', 'give' ),
+								'enabled'  => __( 'Enabled', 'give' ),
+								'disabled' => __( 'Disabled', 'give' ),
+							),
 						),
 						array(
 							'name'    => __( 'Guest Donations', 'give' ),
@@ -356,62 +412,78 @@ class Give_MetaBox_Form_Data {
 
 					array(
 						'name'        => __( 'Goal Format', 'give' ),
-						'description' => __( 'Do you want to display the total amount raised based on your monetary goal or a percentage? For instance, "$500 of $1,000 raised" or "50% funded".', 'give' ),
+						'description' => __( 'Do you want to display the total amount raised based on your monetary goal or a percentage? For instance, "$500 of $1,000 raised" or "50% funded" or "1 of 5 donations". You can also display a donor-based goal, such as "100 of 1,000 donors have given".', 'give' ),
 						'id'          => $prefix . 'goal_format',
-						'type'        => 'radio_inline',
+						'type'        => 'donation_form_goal',
 						'default'     => 'amount',
 						'options'     => array(
-							'amount'     => __( 'Amount', 'give' ),
-							'percentage' => __( 'Percentage', 'give' ),
+							'amount'     => __( 'Amount Raised', 'give' ),
+							'percentage' => __( 'Percentage Raised', 'give' ),
 							'donation'   => __( 'Number of Donations', 'give' ),
+							'donors'     => __( 'Number of Donors', 'give' ),
 						),
 					),
 
 					array(
-						'name'        => __( 'Goal Amount', 'give' ),
-						'description' => __( 'This is the monetary goal amount you want to reach for this form.', 'give' ),
-						'id'          => $prefix . 'set_goal',
-						'type'        => 'text_small',
-						'data_type'   => 'price',
-						'attributes'  => array(
-							'placeholder' => give_format_decimal( '0.00', false, false ),
-							'value'       => $goal,
+						'name'          => __( 'Goal Amount', 'give' ),
+						'description'   => __( 'This is the monetary goal amount you want to reach for this form.', 'give' ),
+						'id'            => $prefix . 'set_goal',
+						'type'          => 'text_small',
+						'data_type'     => 'price',
+						'attributes'    => array(
+							'placeholder' => $price_placeholder,
 							'class'       => 'give-money-field',
 						),
+						'wrapper_class' => 'give-hidden',
 					),
-
 					array(
 						'id'         => $prefix . 'number_of_donation_goal',
 						'name'       => __( 'Donation Goal', 'give' ),
-						'desc'       => __( 'Set total number of donations as a goal.', 'give' ),
-						'type'       => 'text_small',
-					),
-
-					array(
-						'name'    => __( 'Progress Bar Color', 'give' ),
-						'desc'    => __( 'Customize the color of the goal progress bar.', 'give' ),
-						'id'      => $prefix . 'goal_color',
-						'type'    => 'colorpicker',
-						'default' => '#2bc253',
-					),
-
-					array(
-						'name'    => __( 'Close Form', 'give' ),
-						'desc'    => __( 'Do you want to close the donation forms and stop accepting donations once this goal has been met?', 'give' ),
-						'id'      => $prefix . 'close_form_when_goal_achieved',
-						'type'    => 'radio_inline',
-						'default' => 'disabled',
-						'options' => array(
-							'enabled'  => __( 'Enabled', 'give' ),
-							'disabled' => __( 'Disabled', 'give' ),
+						'desc'       => __( 'Set the total number of donations as a goal.', 'give' ),
+						'type'       => 'number',
+						'default'    => 1,
+						'attributes' => array(
+							'placeholder' => 1,
 						),
 					),
 					array(
-						'name'       => __( 'Goal Achieved Message', 'give' ),
-						'desc'       => __( 'Do you want to display a custom message when the goal is closed?', 'give' ),
-						'id'         => $prefix . 'form_goal_achieved_message',
-						'type'       => 'wysiwyg',
-                        'default' => __( 'Thank you to all our donors, we have met our fundraising goal.', 'give' ),
+						'id'         => $prefix . 'number_of_donor_goal',
+						'name'       => __( 'Donor Goal', 'give' ),
+						'desc'       => __( 'Set the total number of donors as a goal.', 'give' ),
+						'type'       => 'number',
+						'default'    => 1,
+						'attributes' => array(
+							'placeholder' => 1,
+						),
+					),
+					array(
+						'name'          => __( 'Progress Bar Color', 'give' ),
+						'desc'          => __( 'Customize the color of the goal progress bar.', 'give' ),
+						'id'            => $prefix . 'goal_color',
+						'type'          => 'colorpicker',
+						'default'       => '#2bc253',
+						'wrapper_class' => 'give-hidden',
+					),
+
+					array(
+						'name'          => __( 'Close Form', 'give' ),
+						'desc'          => __( 'Do you want to close the donation forms and stop accepting donations once this goal has been met?', 'give' ),
+						'id'            => $prefix . 'close_form_when_goal_achieved',
+						'type'          => 'radio_inline',
+						'default'       => 'disabled',
+						'options'       => array(
+							'enabled'  => __( 'Enabled', 'give' ),
+							'disabled' => __( 'Disabled', 'give' ),
+						),
+						'wrapper_class' => 'give-hidden',
+					),
+					array(
+						'name'          => __( 'Goal Achieved Message', 'give' ),
+						'desc'          => __( 'Do you want to display a custom message when the goal is closed?', 'give' ),
+						'id'            => $prefix . 'form_goal_achieved_message',
+						'type'          => 'wysiwyg',
+						'default'       => __( 'Thank you to all our donors, we have met our fundraising goal.', 'give' ),
+						'wrapper_class' => 'give-hidden',
 					),
 					array(
 						'name'  => 'donation_goal_docs',
@@ -448,22 +520,24 @@ class Give_MetaBox_Form_Data {
 
 					// Content placement.
 					array(
-						'name'        => __( 'Content Placement', 'give' ),
-						'description' => __( 'This option controls where the content appears within the donation form.', 'give' ),
-						'id'          => $prefix . 'content_placement',
-						'type'        => 'radio_inline',
-						'options'     => apply_filters( 'give_forms_content_options_select', array(
+						'name'          => __( 'Content Placement', 'give' ),
+						'description'   => __( 'This option controls where the content appears within the donation form.', 'give' ),
+						'id'            => $prefix . 'content_placement',
+						'type'          => 'radio_inline',
+						'options'       => apply_filters( 'give_forms_content_options_select', array(
 								'give_pre_form'  => __( 'Above fields', 'give' ),
 								'give_post_form' => __( 'Below fields', 'give' ),
 							)
 						),
-						'default'     => 'give_pre_form',
+						'default'       => 'give_pre_form',
+						'wrapper_class' => 'give-hidden',
 					),
 					array(
-						'name'        => __( 'Content', 'give' ),
-						'description' => __( 'This content will display on the single give form page.', 'give' ),
-						'id'          => $prefix . 'form_content',
-						'type'        => 'wysiwyg',
+						'name'          => __( 'Content', 'give' ),
+						'description'   => __( 'This content will display on the single give form page.', 'give' ),
+						'id'            => $prefix . 'form_content',
+						'type'          => 'wysiwyg',
+						'wrapper_class' => 'give-hidden',
 					),
 					array(
 						'name'  => 'form_content_docs',
@@ -499,21 +573,23 @@ class Give_MetaBox_Form_Data {
 						'default'     => 'global',
 					),
 					array(
-						'id'         => $prefix . 'agree_label',
-						'name'       => __( 'Agreement Label', 'give' ),
-						'desc'       => __( 'The label shown next to the agree to terms check box. Add your own to customize or leave blank to use the default text placeholder.', 'give' ),
-						'type'       => 'text',
-						'size'       => 'regular',
-						'attributes' => array(
-							'placeholder' => esc_attr__( 'Agree to Terms?', 'give' ),
+						'id'            => $prefix . 'agree_label',
+						'name'          => __( 'Agreement Label', 'give' ),
+						'desc'          => __( 'The label shown next to the agree to terms check box. Add your own to customize or leave blank to use the default text placeholder.', 'give' ),
+						'type'          => 'textarea',
+						'attributes'    => array(
+							'placeholder' => __( 'Agree to Terms?', 'give' ),
+							'rows'        => 1
 						),
+						'wrapper_class' => 'give-hidden',
 					),
 					array(
-						'id'   => $prefix . 'agree_text',
-						'name' => __( 'Agreement Text', 'give' ),
-						'desc' => __( 'This is the actual text which the user will have to agree to in order to make a donation.', 'give' ),
-						'default' => give_get_option('agreement_text'),
-						'type' => 'wysiwyg',
+						'id'            => $prefix . 'agree_text',
+						'name'          => __( 'Agreement Text', 'give' ),
+						'desc'          => __( 'This is the actual text which the user will have to agree to in order to make a donation.', 'give' ),
+						'default'       => give_get_option( 'agreement_text' ),
+						'type'          => 'wysiwyg',
+						'wrapper_class' => 'give-hidden',
 					),
 					array(
 						'name'  => 'terms_docs',
@@ -527,7 +603,6 @@ class Give_MetaBox_Form_Data {
 			) ),
 		);
 
-
 		/**
 		 * Filter the metabox tabbed panel settings.
 		 */
@@ -540,7 +615,8 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Add metabox.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return void
 	 */
 	public function add_meta_box() {
@@ -552,13 +628,27 @@ class Give_MetaBox_Form_Data {
 			'normal',
 			'high'
 		);
+
+		// Show Goal Metabox only if goal is enabled.
+		if ( give_is_setting_enabled( give_get_meta( give_get_admin_post_id(), '_give_goal_option', true ) ) ) {
+			add_meta_box(
+				'give-form-goal-stats',
+				__( 'Goal Statistics', 'give' ),
+				array( $this, 'output_goal' ),
+				array( 'give_forms' ),
+				'side',
+				'low'
+			);
+		}
+
 	}
 
 
 	/**
 	 * Enqueue scripts.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return void
 	 */
 	function enqueue_script() {
@@ -572,7 +662,8 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get metabox id.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return string
 	 */
 	function get_metabox_ID() {
@@ -582,7 +673,8 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get metabox label.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return string
 	 */
 	function get_metabox_label() {
@@ -593,7 +685,8 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get metabox tabs.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return array
 	 */
 	public function get_tabs() {
@@ -636,19 +729,27 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Output metabox settings.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return void
 	 */
 	public function output() {
 		// Bailout.
-		if ( $form_data_tabs = $this->get_tabs() ) {
+		if ( $form_data_tabs = $this->get_tabs() ) :
+			$active_tab = ! empty( $_GET['give_tab'] ) ? give_clean( $_GET['give_tab'] ) : 'form_field_options';
 			wp_nonce_field( 'give_save_form_meta', 'give_form_meta_nonce' );
 			?>
+			<input id="give_form_active_tab" type="hidden" name="give_form_active_tab">
 			<div class="give-metabox-panel-wrap">
 				<ul class="give-form-data-tabs give-metabox-tabs">
 					<?php foreach ( $form_data_tabs as $index => $form_data_tab ) : ?>
-						<li class="<?php echo "{$form_data_tab['id']}_tab" . ( ! $index ? ' active' : '' ) . ( $this->has_sub_tab( $form_data_tab ) ? ' has-sub-fields' : '' ); ?>">
-							<a href="#<?php echo $form_data_tab['id']; ?>">
+						<?php
+						// Determine if current tab is active.
+						$is_active = $active_tab === $form_data_tab['id'] ? true : false;
+						?>
+						<li class="<?php echo "{$form_data_tab['id']}_tab" . ( $is_active ? ' active' : '' ) . ( $this->has_sub_tab( $form_data_tab ) ? ' has-sub-fields' : '' ); ?>">
+							<a href="#<?php echo $form_data_tab['id']; ?>"
+							   data-tab-id="<?php echo $form_data_tab['id']; ?>">
 								<?php if ( ! empty( $form_data_tab['icon-html'] ) ) : ?>
 									<?php echo $form_data_tab['icon-html']; ?>
 								<?php else : ?>
@@ -660,7 +761,8 @@ class Give_MetaBox_Form_Data {
 								<ul class="give-metabox-sub-tabs give-hidden">
 									<?php foreach ( $form_data_tab['sub-fields'] as $sub_tab ) : ?>
 										<li class="<?php echo "{$sub_tab['id']}_tab"; ?>">
-											<a href="#<?php echo $sub_tab['id']; ?>">
+											<a href="#<?php echo $sub_tab['id']; ?>"
+											   data-tab-id="<?php echo $sub_tab['id']; ?>">
 												<?php if ( ! empty( $sub_tab['icon-html'] ) ) : ?>
 													<?php echo $sub_tab['icon-html']; ?>
 												<?php else : ?>
@@ -676,51 +778,64 @@ class Give_MetaBox_Form_Data {
 					<?php endforeach; ?>
 				</ul>
 
-				<?php $show_first_tab_content = true; ?>
 				<?php foreach ( $this->settings as $setting ) : ?>
-					<?php if ( ! $this->has_sub_tab( $setting ) ) : ?>
-						<?php do_action( "give_before_{$setting['id']}_settings" ); ?>
+					<?php do_action( "give_before_{$setting['id']}_settings" ); ?>
+					<?php
+					// Determine if current panel is active.
+					$is_active = $active_tab === $setting['id'] ? true : false;
+					?>
+					<div id="<?php echo $setting['id']; ?>"
+						 class="panel give_options_panel<?php echo( $is_active ? ' active' : '' ); ?>">
+						<?php if ( ! empty( $setting['fields'] ) ) : ?>
+							<?php foreach ( $setting['fields'] as $field ) : ?>
+								<?php give_render_field( $field ); ?>
+							<?php endforeach; ?>
+						<?php endif; ?>
+					</div>
+					<?php do_action( "give_after_{$setting['id']}_settings" ); ?>
 
-						<div id="<?php echo $setting['id']; ?>"
-							 class="panel give_options_panel<?php echo( $show_first_tab_content ? '' : ' give-hidden' );
-						     $show_first_tab_content = false; ?>">
-							<?php if ( ! empty( $setting['fields'] ) ) : ?>
-								<?php foreach ( $setting['fields'] as $field ) : ?>
-									<?php give_render_field( $field ); ?>
-								<?php endforeach; ?>
-							<?php endif; ?>
-						</div>
 
-						<?php do_action( "give_after_{$setting['id']}_settings" ); ?>
-					<?php else: ?>
-						<?php if ( $this->has_sub_tab( $setting ) ) : ?>
-							<?php if ( ! empty( $setting['sub-fields'] ) ) : ?>
-								<?php foreach ( $setting['sub-fields'] as $index => $sub_fields ) : ?>
-									<div id="<?php echo $sub_fields['id']; ?>"
-										 class="panel give_options_panel give-hidden">
-										<?php if ( ! empty( $sub_fields['fields'] ) ) : ?>
-											<?php foreach ( $sub_fields['fields'] as $sub_field ) : ?>
-												<?php give_render_field( $sub_field ); ?>
-											<?php endforeach; ?>
-										<?php endif; ?>
-									</div>
-								<?php endforeach; ?>
-							<?php endif; ?>
+					<?php if ( $this->has_sub_tab( $setting ) ) : ?>
+						<?php if ( ! empty( $setting['sub-fields'] ) ) : ?>
+							<?php foreach ( $setting['sub-fields'] as $index => $sub_fields ) : ?>
+								<div id="<?php echo $sub_fields['id']; ?>" class="panel give_options_panel give-hidden">
+									<?php if ( ! empty( $sub_fields['fields'] ) ) : ?>
+										<?php foreach ( $sub_fields['fields'] as $sub_field ) : ?>
+											<?php give_render_field( $sub_field ); ?>
+										<?php endforeach; ?>
+									<?php endif; ?>
+								</div>
+							<?php endforeach; ?>
 						<?php endif; ?>
 					<?php endif; ?>
 				<?php endforeach; ?>
 			</div>
-			<?php
-		}
+		<?php
+		endif; // End if().
 	}
 
+	/**
+	 * Output Goal meta-box settings.
+	 *
+	 * @param object $post Post Object.
+	 *
+	 * @access public
+	 * @since  2.1.0
+	 *
+	 * @return void
+	 */
+	public function output_goal( $post ) {
+
+		echo give_admin_form_goal_stats( $post->ID );
+
+	}
 
 	/**
 	 * Check if setting field has sub tabs/fields
 	 *
-	 * @since 1.8
+	 * @param array $field_setting Field Settings.
 	 *
-	 * @param $field_setting
+	 * @since 1.8
 	 *
 	 * @return bool
 	 */
@@ -736,7 +851,8 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * CMB2 settings loader.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return array
 	 */
 	function cmb2_metabox_settings() {
@@ -757,10 +873,10 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Check if we're saving, the trigger an action based on the post type.
 	 *
-	 * @since  1.8
+	 * @param int        $post_id Post ID.
+	 * @param int|object $post    Post Object.
 	 *
-	 * @param  int    $post_id
-	 * @param  object $post
+	 * @since 1.8
 	 *
 	 * @return void
 	 */
@@ -806,8 +922,8 @@ class Give_MetaBox_Form_Data {
 
 				// Set default value for checkbox fields.
 				if (
-					! isset( $_POST[ $form_meta_key ] )
-					&& ( 'checkbox' === $this->get_field_type( $form_meta_key ) )
+					! isset( $_POST[ $form_meta_key ] ) &&
+					in_array( $this->get_field_type( $form_meta_key ), array( 'checkbox', 'chosen' ) )
 				) {
 					$_POST[ $form_meta_key ] = '';
 				}
@@ -819,6 +935,10 @@ class Give_MetaBox_Form_Data {
 							case 'textarea':
 							case 'wysiwyg':
 								$form_meta_value = wp_kses_post( $_POST[ $form_meta_key ] );
+								break;
+
+							case 'donation_limit' :
+								$form_meta_value = $_POST[ $form_meta_key ];
 								break;
 
 							case 'group':
@@ -848,15 +968,13 @@ class Give_MetaBox_Form_Data {
 									}
 								}
 
-
 								// Arrange repeater field keys in order.
 								$form_meta_value = array_values( $form_meta_value );
 								break;
 
 							default:
 								$form_meta_value = give_clean( $_POST[ $form_meta_key ] );
-						}
-
+						}// End switch().
 
 						/**
 						 * Filter the form meta value before saving
@@ -864,22 +982,39 @@ class Give_MetaBox_Form_Data {
 						 * @since 1.8.9
 						 */
 						$form_meta_value = apply_filters(
-								'give_pre_save_form_meta_value',
-								$this->sanitize_form_meta( $form_meta_value, $setting_field ),
-								$form_meta_key,
-								$this,
-								$post_id
+							'give_pre_save_form_meta_value',
+							$this->sanitize_form_meta( $form_meta_value, $setting_field ),
+							$form_meta_key,
+							$this,
+							$post_id
 						);
 
-						// Save data.
-						give_update_meta( $post_id, $form_meta_key, $form_meta_value );
+						// Range slider.
+						if ( 'donation_limit' === $setting_field['type'] ) {
+
+							// Sanitize amount for db.
+							$form_meta_value = array_map( 'give_sanitize_amount_for_db', $form_meta_value );
+
+							// Store it to form meta.
+							give_update_meta( $post_id, $form_meta_key . '_minimum', $form_meta_value['minimum'] );
+							give_update_meta( $post_id, $form_meta_key . '_maximum', $form_meta_value['maximum'] );
+						} else {
+							// Save data.
+							give_update_meta( $post_id, $form_meta_key, $form_meta_value );
+						}
+
+						// Verify and delete form meta based on the form status.
+						give_set_form_closed_status( $post_id );
 
 						// Fire after saving form meta key.
 						do_action( "give_save_{$form_meta_key}", $form_meta_key, $form_meta_value, $post_id, $post );
-					}
-				}
-			}
-		}
+					}// End if().
+				}// End if().
+			}// End foreach().
+		}// End if().
+
+		// Update the goal progress for donation form.
+		give_update_goal_progress( $post_id );
 
 		// Fire action after saving form meta.
 		do_action( 'give_post_process_give_forms_meta', $post_id, $post );
@@ -889,9 +1024,9 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get field ID.
 	 *
-	 * @since 1.8
+	 * @param array $field Array of Fields.
 	 *
-	 * @param array $field
+	 * @since 1.8
 	 *
 	 * @return string
 	 */
@@ -909,16 +1044,20 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get fields ID.
 	 *
-	 * @since 1.8
+	 * @param array $setting Array of settings.
 	 *
-	 * @param $setting
+	 * @since 1.8
 	 *
 	 * @return array
 	 */
 	private function get_fields_id( $setting ) {
 		$meta_keys = array();
 
-		if ( ! empty( $setting ) ) {
+		if (
+			! empty( $setting )
+			&& array_key_exists( 'fields', $setting )
+			&& ! empty( $setting['fields'] )
+		) {
 			foreach ( $setting['fields'] as $field ) {
 				if ( $field_id = $this->get_field_id( $field ) ) {
 					$meta_keys[] = $field_id;
@@ -932,9 +1071,9 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get sub fields ID.
 	 *
-	 * @since 1.8
+	 * @param array $setting Array of settings.
 	 *
-	 * @param $setting
+	 * @since 1.8
 	 *
 	 * @return array
 	 */
@@ -960,17 +1099,18 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get all setting field ids.
 	 *
-	 * @since  1.8
+	 * @since 1.8
+	 *
 	 * @return array
 	 */
 	private function get_meta_keys_from_settings() {
 		$meta_keys = array();
 
 		foreach ( $this->settings as $setting ) {
+			$meta_key = $this->get_fields_id( $setting );
+
 			if ( $this->has_sub_tab( $setting ) ) {
-				$meta_key = $this->get_sub_fields_id( $setting );
-			} else {
-				$meta_key = $this->get_fields_id( $setting );
+				$meta_key = array_merge( $meta_key, $this->get_sub_fields_id( $setting ) );
 			}
 
 			$meta_keys = array_merge( $meta_keys, $meta_key );
@@ -983,10 +1123,10 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get field type.
 	 *
-	 * @since  1.8
+	 * @param string $field_id Field ID.
+	 * @param string $group_id Field Group ID.
 	 *
-	 * @param  string $field_id
-	 * @param  string $group_id
+	 * @since 1.8
 	 *
 	 * @return string
 	 */
@@ -1004,10 +1144,10 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get Field
 	 *
-	 * @since 1.8
+	 * @param array  $setting  Settings array.
+	 * @param string $field_id Field ID.
 	 *
-	 * @param array  $setting
-	 * @param string $field_id
+	 * @since 1.8
 	 *
 	 * @return array
 	 */
@@ -1029,10 +1169,10 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get Sub Field
 	 *
-	 * @since 1.8
+	 * @param array  $setting  Settings array.
+	 * @param string $field_id Field ID.
 	 *
-	 * @param array  $setting
-	 * @param string $field_id
+	 * @since 1.8
 	 *
 	 * @return array
 	 */
@@ -1054,10 +1194,10 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Get setting field.
 	 *
-	 * @since  1.8
+	 * @param string $field_id Field ID.
+	 * @param string $group_id Get sub field from group.
 	 *
-	 * @param  string $field_id
-	 * @param  string $group_id Get sub field from group.
+	 * @since 1.8
 	 *
 	 * @return array
 	 */
@@ -1078,7 +1218,6 @@ class Give_MetaBox_Form_Data {
 			}
 		}
 
-
 		// Get field from group.
 		if ( ! empty( $group_id ) ) {
 			foreach ( $setting_field['fields'] as $field ) {
@@ -1095,9 +1234,9 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Add offline donations setting tab to donation form options metabox.
 	 *
-	 * @since  1.8
+	 * @param array $settings List of form settings.
 	 *
-	 * @param  array $settings List of form settings.
+	 * @since 1.8
 	 *
 	 * @return mixed
 	 */
@@ -1118,11 +1257,11 @@ class Give_MetaBox_Form_Data {
 	/**
 	 * Sanitize form meta values before saving.
 	 *
+	 * @param mixed $meta_value    Meta Value for sanitizing before saving.
+	 * @param array $setting_field Setting Field.
+	 *
 	 * @since  1.8.9
 	 * @access public
-	 *
-	 * @param mixed $meta_value
-	 * @param array $setting_field
 	 *
 	 * @return mixed
 	 */
@@ -1136,13 +1275,15 @@ class Give_MetaBox_Form_Data {
 						}
 
 						foreach ( $meta_value as $index => $meta_data ) {
-							if( ! isset( $meta_value[ $index ][ $field['id'] ] ) ) {
+							if ( ! isset( $meta_value[ $index ][ $field['id'] ] ) ) {
 								continue;
 							}
 
-							$meta_value[ $index ][ $field['id'] ] = ! empty( $meta_value[ $index ][ $field['id'] ] )
-								? give_sanitize_amount_for_db( $meta_value[ $index ][ $field['id'] ] )
-								: 0;
+							$meta_value[ $index ][ $field['id'] ] = ! empty( $meta_value[ $index ][ $field['id'] ] ) ?
+								give_sanitize_amount_for_db( $meta_value[ $index ][ $field['id'] ] ) :
+								( ( '_give_amount' === $field['id'] && empty( $field_value ) ) ?
+									give_sanitize_amount_for_db( '1.00' ) :
+									0 );
 						}
 					}
 				}
@@ -1150,11 +1291,41 @@ class Give_MetaBox_Form_Data {
 
 			default:
 				if ( ! empty( $setting_field['data_type'] ) && 'price' === $setting_field['data_type'] ) {
-					$meta_value = $meta_value ? give_sanitize_amount_for_db( $meta_value ) : 0;
+					$meta_value = $meta_value ?
+						give_sanitize_amount_for_db( $meta_value ) :
+						( in_array( $setting_field['id'], array(
+							'_give_set_price',
+							'_give_custom_amount_minimum',
+							'_give_set_goal'
+						) ) ?
+							give_sanitize_amount_for_db( '1.00' ) :
+							0 );
 				}
 		}
 
 		return $meta_value;
+	}
+
+	/**
+	 * Maintain the active tab after save.
+	 *
+	 * @param string $location The destination URL.
+	 * @param int    $post_id  The post ID.
+	 *
+	 * @since  1.8.13
+	 * @access public
+	 *
+	 * @return string The URL after redirect.
+	 */
+	public function maintain_active_tab( $location, $post_id ) {
+		if (
+			'give_forms' === get_post_type( $post_id ) &&
+			! empty( $_POST['give_form_active_tab'] )
+		) {
+			$location = add_query_arg( 'give_tab', give_clean( $_POST['give_form_active_tab'] ), $location );
+		}
+
+		return $location;
 	}
 }
 

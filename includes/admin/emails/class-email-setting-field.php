@@ -5,7 +5,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -25,10 +25,7 @@ class Give_Email_Setting_Field {
 		$setting_fields = self::get_default_setting_fields( $email, $form_id );
 
 		// Recipient field.
-		if ( Give_Email_Notification_Util::has_recipient_field( $email ) ) {
-			$setting_fields[] = self::get_recipient_setting_field( $email, $form_id );
-		}
-
+		$setting_fields[] = self::get_recipient_setting_field( $email, $form_id, Give_Email_Notification_Util::has_recipient_field( $email ) );
 
 		// Add extra setting field.
 		if ( $extra_setting_field = $email->get_extra_setting_fields( $form_id ) ) {
@@ -133,19 +130,20 @@ class Give_Email_Setting_Field {
 		$settings[] = self::get_notification_status_field( $email, $form_id );
 
 		if ( ! Give_Email_Notification_Util::is_notification_status_editable( $email ) ) {
-			if( $form_id || give_is_add_new_form_page() ){
+			if ( $form_id || give_is_add_new_form_page() ) {
 				// Do not allow admin to disable notification on perform basis.
 				unset( $settings[1]['options']['disabled'] );
-			} else{
+			} else {
 				// Do not allow admin to edit notification status globally.
 				unset( $settings[1] );
 			}
 		}
 
 		$settings[] = self::get_email_subject_field( $email, $form_id );
+		$settings[] = self::get_email_header_field( $email, $form_id );
 		$settings[] = self::get_email_message_field( $email, $form_id );
 
-		if( Give_Email_Notification_Util::is_content_type_editable( $email ) ) {
+		if ( Give_Email_Notification_Util::is_content_type_editable( $email ) ) {
 			$settings[] = self::get_email_content_type_field( $email, $form_id );
 		}
 
@@ -182,9 +180,11 @@ class Give_Email_Setting_Field {
 			$default_value = 'global';
 		}
 
+		$description = isset( $_GET['page'] ) && 'give-settings' === $_GET['page'] ? __( 'Choose whether you want this email enabled or not.', 'give' ) : sprintf( __( 'Global Options are set <a href="%s">in Give settings</a>. You may override them for this form here.', 'give' ), admin_url( 'edit.php?post_type=give_forms&page=give-settings&tab=emails' ) );
+
 		return array(
 			'name'          => esc_html__( 'Notification', 'give' ),
-			'desc'          => esc_html__( 'Choose option if you want to send email notification or not.', 'give' ),
+			'desc'          => $description,
 			'id'            => self::get_prefix( $email, $form_id ) . 'notification',
 			'type'          => 'radio_inline',
 			'default'       => $default_value,
@@ -208,8 +208,28 @@ class Give_Email_Setting_Field {
 		return array(
 			'id'      => self::get_prefix( $email, $form_id ) . 'email_subject',
 			'name'    => esc_html__( 'Email Subject', 'give' ),
-			'desc'    => esc_html__( 'Enter the subject line for email.', 'give' ),
+			'desc'    => esc_html__( 'Enter the email subject line.', 'give' ),
 			'default' => $email->config['default_email_subject'],
+			'type'    => 'text',
+		);
+	}
+
+	/**
+	 * Get email header setting field.
+	 *
+	 * @since  2.1.3
+	 *
+	 * @param Give_Email_Notification $email   The email object.
+	 * @param int                     $form_id The Form ID.
+	 *
+	 * @return array
+	 */
+	public static function get_email_header_field( Give_Email_Notification $email, $form_id = null ) {
+		return array(
+			'id'      => self::get_prefix( $email, $form_id ) . 'email_header',
+			'name'    => esc_html__( 'Email Header', 'give' ),
+			'desc'    => esc_html__( 'Enter the email header that appears at the top of the email.', 'give' ),
+			'default' => $email->config['default_email_header'],
 			'type'    => 'text',
 		);
 	}
@@ -230,8 +250,16 @@ class Give_Email_Setting_Field {
 
 		if ( $email_tag_list = $email->get_allowed_email_tags( true ) ) {
 			$desc = sprintf(
-				esc_html__( 'Enter the email that is sent to users after completing a successful donation. HTML is accepted. Available template tags: %s', 'give' ),
-				$email_tag_list
+				'%1$s <br> %2$s: %3$s %4$s',
+				__( 'The email that is sent to users after completing a successful donation. HTML is accepted.', 'give' ),
+				__( 'Available template tags', 'give' ),
+				$email_tag_list,
+				sprintf(
+					'<br><a href="%1$s" target="_blank">%2$s</a> %3$s',
+					esc_url( 'http://docs.givewp.com/meta-email-tags' ),
+					__( 'See our documentation', 'give' ),
+					__( 'for examples of how to use custom meta email tags to output additional donor or donation information in your Give emails.', 'give' )
+				)
 			);
 
 		}
@@ -260,7 +288,7 @@ class Give_Email_Setting_Field {
 		return array(
 			'id'      => self::get_prefix( $email, $form_id ) . 'email_content_type',
 			'name'    => esc_html__( 'Email Content Type', 'give' ),
-			'desc'    => __( 'Choose email content type.', 'give' ),
+			'desc'    => __( 'Choose email type.', 'give' ),
 			'type'    => 'select',
 			'options' => array(
 				'text/html'  => Give_Email_Notification_Util::get_formatted_email_type( 'text/html' ),
@@ -275,41 +303,79 @@ class Give_Email_Setting_Field {
 	 * Get recipient setting field.
 	 *
 	 * @since  2.0
-	 * @access static
-	 * @todo check this field in form metabox setting after form api merge.
+	 * @access public
+	 * @todo   check this field in form metabox setting after form api merge.
 	 *
 	 * @param Give_Email_Notification $email
 	 * @param int                     $form_id
+	 * @param bool                    $edit_recipient
 	 *
 	 * @return array
 	 */
-	public static function get_recipient_setting_field( Give_Email_Notification $email, $form_id = null ) {
-		return array(
+	public static function get_recipient_setting_field( Give_Email_Notification $email, $form_id = null, $edit_recipient = true ) {
+		$recipient = array(
 			'id'               => self::get_prefix( $email, $form_id ) . 'recipient',
 			'name'             => esc_html__( 'Email Recipients', 'give' ),
-			'desc'             => __( 'Enter the email address(es) that should receive a notification anytime a donation is made.', 'give' ),
+			'desc'             => __( 'Enter the email address(es) that should receive a notification.', 'give' ),
 			'type'             => 'email',
 			'default'          => get_bloginfo( 'admin_email' ),
 			'repeat'           => true,
 			'repeat_btn_title' => esc_html__( 'Add Recipient', 'give' ),
 		);
+
+		if ( $form_id || give_is_add_new_form_page() ) {
+			$recipient['name']    = __( 'Email', 'give' );
+			$recipient['default'] = '';
+			$recipient['id']      = 'email';
+			$recipient['desc']    = __( 'Enter the email address that should receive a notification.', 'give' );
+
+			$recipient = array(
+				'id'      => self::get_prefix( $email, $form_id ) . 'recipient',
+				'type'    => 'group',
+				'options' => array(
+					'add_button'    => __( 'Add Email', 'give' ),
+					'header_title'  => __( 'Email Recipient', 'give' ),
+					'remove_button' => '<span class="dashicons dashicons-no"></span>',
+				),
+				'fields'  => array(
+					$recipient,
+				),
+			);
+		}
+
+		// Disable field if email donor has recipient field.
+		// @see https://github.com/impress-org/give/issues/2657
+		if ( ! $edit_recipient ) {
+			if ( 'group' == $recipient['type'] ) {
+				$recipient         = current( $recipient['fields'] );
+				$recipient['type'] = 'text';
+			}
+
+			$recipient['attributes']['disabled'] = 'disabled';
+			$recipient['value']                  = $recipient['default'] = '{donor_email}';
+			$recipient['repeat']                 = false;
+			$recipient['desc']                   = __( 'This email is automatically sent to the donor and the recipient cannot be customized.', 'give' );
+		}
+
+		return $recipient;
 	}
 
 	/**
 	 * Get preview setting field.
 	 *
+	 * @param Give_Email_Notification $email   Email Type.
+	 * @param int                     $form_id Form ID.
+	 *
 	 * @since  2.0
 	 * @access static
-	 *
-	 * @param Give_Email_Notification $email
-	 * @param int                     $form_id
 	 *
 	 * @return array
 	 */
 	public static function get_preview_setting_field( Give_Email_Notification $email, $form_id = null ) {
 		return array(
-			'name' => esc_html__( 'Preview Email', 'give' ),
-			'desc' => esc_html__( 'Click the buttons to preview emails.', 'give' ),
+			'name' => __( 'Preview Email', 'give' ),
+			'desc' => __( 'Click the "Preview Email" button to preview the email in your browser. Click the "Send Test Email" button to send a test email directly to your inbox.',
+				'give' ),
 			'id'   => self::get_prefix( $email, $form_id ) . 'preview_buttons',
 			'type' => 'email_preview_buttons',
 		);
@@ -327,10 +393,10 @@ class Give_Email_Setting_Field {
 	 *
 	 * @return string
 	 */
-	public static function get_prefix( Give_Email_Notification $email, $form_id = null  ) {
+	public static function get_prefix( Give_Email_Notification $email, $form_id = null ) {
 		$meta_key = "{$email->config['id']}_";
 
-		if( $form_id || give_is_add_new_form_page() ) {
+		if ( $form_id || give_is_add_new_form_page() ) {
 			$meta_key = "_give_{$email->config['id']}_";
 		}
 

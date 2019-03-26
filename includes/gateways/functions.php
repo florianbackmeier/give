@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Gateways
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -22,16 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function give_get_payment_gateways() {
 	// Default, built-in gateways
-	$gateways = array(
-		'paypal' => array(
-			'admin_label'    => __( 'PayPal Standard', 'give' ),
-			'checkout_label' => __( 'PayPal', 'give' ),
-		),
-		'manual' => array(
-			'admin_label'    => __( 'Test Donation', 'give' ),
-			'checkout_label' => __( 'Test Donation', 'give' )
-		),
-	);
+	$gateways = Give_Cache_Setting::get_option( 'gateways' );
 
 	return apply_filters( 'give_payment_gateways', $gateways );
 
@@ -94,16 +85,18 @@ function give_is_gateway_active( $gateway ) {
  */
 function give_get_default_gateway( $form_id ) {
 
-	$give_options = give_get_settings();
-	$default      = isset( $give_options['default_gateway'] ) && give_is_gateway_active( $give_options['default_gateway'] ) ? $give_options['default_gateway'] : 'paypal';
-	$form_default = give_get_meta( $form_id, '_give_default_gateway', true );
+	$enabled_gateways = array_keys( give_get_enabled_payment_gateways() );
+	$default_gateway  = give_get_option('default_gateway');
+	$default          = ! empty( $default_gateway ) && give_is_gateway_active( $default_gateway ) ? $default_gateway : $enabled_gateways[0];
+	$form_default     = give_get_meta( $form_id, '_give_default_gateway', true );
 
 	// Single Form settings varies compared to the Global default settings.
-	if ( ! empty( $form_default ) &&
-		 $form_id !== null &&
-		 $default !== $form_default &&
-		 $form_default !== 'global' &&
-		 give_is_gateway_active( $form_default )
+	if (
+		! empty( $form_default ) &&
+		$form_id !== null &&
+		$default !== $form_default &&
+		'global' !== $form_default &&
+		give_is_gateway_active( $form_default )
 	) {
 		$default = $form_default;
 	}
@@ -123,12 +116,9 @@ function give_get_default_gateway( $form_id ) {
 function give_get_gateway_admin_label( $gateway ) {
 	$gateways = give_get_payment_gateways();
 	$label    = isset( $gateways[ $gateway ] ) ? $gateways[ $gateway ]['admin_label'] : $gateway;
-	$payment  = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : false;
 
-	if ( $gateway == 'manual' && $payment ) {
-		if ( give_get_payment_amount( $payment ) == 0 ) {
-			$label = __( 'Test Donation', 'give' );
-		}
+	if ( $gateway == 'manual' ) {
+		$label = __( 'Test Donation', 'give' );
 	}
 
 	return apply_filters( 'give_gateway_admin_label', $label, $gateway );
@@ -283,7 +273,7 @@ function give_record_gateway_error( $title = '', $message = '', $parent = 0 ) {
  * @since 1.0
  *
  * @param string $gateway_id
- * @param string $status
+ * @param array|string $status
  *
  * @return int
  */

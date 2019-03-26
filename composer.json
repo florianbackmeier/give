@@ -1,17 +1,17 @@
 {
-  "name": "wordimpress/give",
+  "name": "impress-org/give",
   "type": "wordpress-plugin",
-  "license": "GPL-2.0+",
+  "license": "GPL-2.0-or-later",
   "description": "Give - a WordPress Donation Plugin and Fundraising Platform",
   "homepage": "https://givewp.com/",
   "require": {
-    "composer/installers": "~1.2"
+    "composer/installers": "~1.2",
+    "tecnickcom/tcpdf": "^6.2"
   },
   "require-dev": {
     "squizlabs/php_codesniffer": "*",
-    "wp-coding-standards/wpcs": "0.10.0",
-    "wimg/php-compatibility": "*",
-    "simplyadmire/composer-plugins" : "@dev"
+    "wp-coding-standards/wpcs": "*",
+    "wimg/php-compatibility": "*"
   },
   "keywords": [
     "wordpress",
@@ -19,14 +19,18 @@
     "donations"
   ],
   "support": {
-    "issues": "https://github.com/WordImpress/Give/issues"
+    "issues": "https://github.com/impress-org/give/issues"
   },
   "scripts": {
     "post-install-cmd": [
-      "\"vendor/bin/phpcs\" --config-set installed_paths vendor/wp-coding-standards/wpcs"
+      "[ -f vendor/bin/phpcs ] && \"vendor/bin/phpcs\" --config-set installed_paths vendor/wp-coding-standards/wpcs || true",
+      "rm -rf ./vendor/tecnickcom/tcpdf/fonts/*",
+      "cp ./assets/src/tcpdf-fonts/* ./vendor/tecnickcom/tcpdf/fonts/"
     ],
     "post-update-cmd": [
-      "\"vendor/bin/phpcs\" --config-set installed_paths vendor/wp-coding-standards/wpcs"
+      "[ -f vendor/bin/phpcs ] && \"vendor/bin/phpcs\" --config-set installed_paths vendor/wp-coding-standards/wpcs || true",
+      "rm -rf ./vendor/tecnickcom/tcpdf/fonts/*",
+      "cp ./assets/src/tcpdf-fonts/* ./vendor/tecnickcom/tcpdf/fonts/"
     ]
   }
 }

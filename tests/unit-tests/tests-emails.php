@@ -65,7 +65,7 @@ class Tests_Emails extends Give_Unit_Test_Case {
 		foreach ( $email_functions as $email_function ) {
 			$priority = ! empty( $email_function['priority'] ) ? $email_function['priority'] : 10;
 			$add_filters = array_keys( $wp_filter[$email_function['hook']][$priority] );
-			
+
 			foreach ( $add_filters as $index =>  $filter ) {
 				if( false === strpos( $filter ,  $email_function['callback'] ) ) {
 					unset( $add_filters[$index] );
@@ -149,7 +149,6 @@ class Tests_Emails extends Give_Unit_Test_Case {
 		$this->assertarrayHasKey( 'billing_address', give_get_email_tags() );
 		$this->assertarrayHasKey( 'date', give_get_email_tags() );
 		$this->assertarrayHasKey( 'payment_id', give_get_email_tags() );
-		$this->assertarrayHasKey( 'receipt_id', give_get_email_tags() );
 		$this->assertarrayHasKey( 'payment_method', give_get_email_tags() );
 		$this->assertarrayHasKey( 'sitename', give_get_email_tags() );
 		$this->assertarrayHasKey( 'receipt_link', give_get_email_tags() );
@@ -211,6 +210,7 @@ class Tests_Emails extends Give_Unit_Test_Case {
 	 * Test {amount} email tag.
 	 */
 	public function test_email_tags_amount() {
+		// Actual output without html decode is &#36;&#x200e;20.00.
 		$this->assertEquals( '$20.00', give_email_tag_price( $this->_payment_id ) );
 	}
 
@@ -218,14 +218,9 @@ class Tests_Emails extends Give_Unit_Test_Case {
 	 * Test {payment_id} email tag.
 	 */
 	public function test_email_tags_payment_id() {
-		$this->assertEquals( $this->_payment_id, give_email_tag_payment_id( $this->_payment_id ) );
-	}
-
-	/**
-	 * Test {receipt_id} email tag.
-	 */
-	public function test_email_tags_receipt_id() {
-		$this->assertEquals( give_get_payment_key( $this->_payment_id ), give_email_tag_receipt_id( $this->_payment_id ) );
+		give_update_option( 'sequential-ordering_status', 'disabled' );
+		$this->assertEquals( Give()->seq_donation_number->get_serial_number( $this->_payment_id ), give_email_tag_payment_id( $this->_payment_id ) );
+		give_update_option( 'sequential-ordering_status', 'enabled' );
 	}
 
 	/**
@@ -246,7 +241,10 @@ class Tests_Emails extends Give_Unit_Test_Case {
 	 * Test {receipt_link} email tag.
 	 */
 	public function test_email_tags_receipt_link() {
-		$this->assertContains( 'View it in your browser &raquo;', give_email_tag_receipt_link( $this->_payment_id ) );
+
+		$receipt_link = give_get_view_receipt_link( $this->_payment_id );
+
+		$this->assertContains( $receipt_link, give_email_tag_receipt_link( $this->_payment_id ) );
 	}
 
 	/**
@@ -254,10 +252,7 @@ class Tests_Emails extends Give_Unit_Test_Case {
 	 */
 	public function test_email_tags_receipt_link_url() {
 
-		$receipt_url = esc_url( add_query_arg( array(
-			'payment_key' => give_get_payment_key( $this->_payment_id ),
-			'give_action' => 'view_receipt',
-		), home_url() ) );
+		$receipt_url = give_get_view_receipt_url( $this->_payment_id );
 
 		$this->assertContains( $receipt_url, give_email_tag_receipt_link( $this->_payment_id ) );
 	}

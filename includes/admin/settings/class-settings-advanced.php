@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_Settings_Advanced
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU Public License
  * @since       1.8
  */
@@ -27,9 +27,14 @@ if ( ! class_exists( 'Give_Settings_Advanced' ) ) :
 		 */
 		public function __construct() {
 			$this->id    = 'advanced';
-			$this->label = esc_html__( 'Advanced', 'give' );
+			$this->label = __( 'Advanced', 'give' );
 
 			$this->default_tab = 'advanced-options';
+
+			if ( $this->id === give_get_current_setting_tab() ) {
+				add_action( 'give_admin_field_remove_cache_button', array( $this, 'render_remove_cache_button' ), 10, 1 );
+				add_action( 'give_save_settings_give_settings', array( $this, 'validate_settngs' ) );
+			}
 
 			parent::__construct();
 		}
@@ -50,18 +55,26 @@ if ( ! class_exists( 'Give_Settings_Advanced' ) ) :
 					$settings = array(
 						array(
 							'id'   => 'give_title_data_control_2',
-							'type' => 'title'
+							'type' => 'title',
 						),
 						array(
-							'name'    => esc_html__( 'Remove Data on Uninstall', 'give' ),
-							'desc'    => esc_html__( 'When the plugin is deleted, completely remove all Give data. This includes all Give settings, forms, form meta, donor, donor data, donations. Everything.', 'give' ),
+							'name'    => __( 'Remove Data on Uninstall', 'give' ),
+							'desc'    => __( 'When the plugin is deleted, completely remove all Give data. This includes all Give settings, forms, form meta, donor, donor data, donations. Everything.', 'give' ),
 							'id'      => 'uninstall_on_delete',
 							'type'    => 'radio_inline',
 							'default' => 'disabled',
 							'options' => array(
 								'enabled'  => __( 'Yes, Remove all data', 'give' ),
 								'disabled' => __( 'No, keep my Give settings and donation data', 'give' ),
-							)
+							),
+						),
+						array(
+							'name'    => __( 'Default User Role', 'give' ),
+							'desc'    => __( 'Assign default user roles for donors when donors opt to register as a WP User.', 'give' ),
+							'id'      => 'donor_default_user_role',
+							'type'    => 'select',
+							'default' => 'give_donor',
+							'options' => give_get_user_roles(),
 						),
 						array(
 							/* translators: %s: the_content */
@@ -74,32 +87,82 @@ if ( ! class_exists( 'Give_Settings_Advanced' ) ) :
 							'options' => array(
 								'enabled'  => __( 'Enabled', 'give' ),
 								'disabled' => __( 'Disabled', 'give' ),
-							)
+							),
 						),
 						array(
-							'name'    => esc_html__( 'Script Loading Location', 'give' ),
+							'name'    => __( 'Script Loading Location', 'give' ),
 							'desc'    => __( 'This allows you to load your Give scripts either in the <code>&lt;head&gt;</code> or footer of your website.', 'give' ),
 							'id'      => 'scripts_footer',
 							'type'    => 'radio_inline',
 							'default' => 'disabled',
 							'options' => array(
-								'enabled'  => __( 'Footer', 'give' ),
 								'disabled' => __( 'Head', 'give' ),
-							)
+								'enabled'  => __( 'Footer', 'give' ),
+							),
 						),
-                        array(
-                            'name'  => esc_html__( 'Advanced Settings Docs Link', 'give' ),
-                            'id'    => 'advanced_settings_docs_link',
-                            'url'   => esc_url( 'http://docs.givewp.com/settings-advanced' ),
-                            'title' => __( 'Advanced Settings', 'give' ),
-                            'type'  => 'give_docs_link',
-                        ),
+						array(
+							'name'    => __( 'Babel Polyfill Script', 'give' ),
+							'desc'    => __( 'Decide whether to load the Babel polyfill, which provides backwards compatibility for older browsers such as IE 11. The polyfill may be disabled to avoid conflicts with other themes or plugins that load the same script.', 'give' ),
+							'id'      => 'babel_polyfill_script',
+							'type'    => 'radio_inline',
+							'default' => 'enabled',
+							'options' => array(
+								'enabled'  => __( 'Enabled', 'give' ),
+								'disabled' => __( 'Disabled', 'give' ),
+							),
+						),
+						array(
+							'name'    => __( 'Akismet SPAM Protection', 'give' ),
+							'desc'    => __( 'Add a layer of SPAM protection to your donation submissions with Akismet. When enabled, donation submissions will be first sent to Akismet\'s API if you have the plugin activated and configured.', 'give' ),
+							'id'      => 'akismet_spam_protection',
+							'type'    => 'radio_inline',
+							'default' => ( give_check_akismet_key() ) ? 'enabled' : 'disabled',
+							'options' => array(
+								'enabled'  => __( 'Enabled', 'give' ),
+								'disabled' => __( 'Disabled', 'give' ),
+							),
+						),
+						array(
+							'name'        => 'Give Cache',
+							'id'          => 'give-clear-cache',
+							'buttonTitle' => __( 'Clear Cache', 'give' ),
+							'desc'        => __( 'Click this button if you want to clear Give\'s cache. The plugin stores common settings and queries in cache to optimize performance. Clearing cache will remove and begin rebuilding these saved queries.', 'give' ),
+							'type'        => 'remove_cache_button'
+						),
+						array(
+							'name'  => __( 'Advanced Settings Docs Link', 'give' ),
+							'id'    => 'advanced_settings_docs_link',
+							'url'   => esc_url( 'http://docs.givewp.com/settings-advanced' ),
+							'title' => __( 'Advanced Settings', 'give' ),
+							'type'  => 'give_docs_link',
+						),
 						array(
 							'id'   => 'give_title_data_control_2',
-							'type' => 'sectionend'
-						)
+							'type' => 'sectionend',
+						),
 					);
 					break;
+			}
+
+			/**
+			 * Hide caching setting by default.
+			 *
+			 * @since 2.0
+			 */
+			if ( apply_filters( 'give_settings_advanced_show_cache_setting', false ) ) {
+				array_splice( $settings, 1, 0, array(
+					array(
+						'name'    => __( 'Cache', 'give' ),
+						'desc'    => __( 'If caching is enabled the plugin will start caching custom post type related queries and reduce the overall load time.', 'give' ),
+						'id'      => 'cache',
+						'type'    => 'radio_inline',
+						'default' => 'enabled',
+						'options' => array(
+							'enabled'  => __( 'Enabled', 'give' ),
+							'disabled' => __( 'Disabled', 'give' ),
+						),
+					)
+				) );
 			}
 
 
@@ -130,10 +193,64 @@ if ( ! class_exists( 'Give_Settings_Advanced' ) ) :
 		 */
 		public function get_sections() {
 			$sections = array(
-				'advanced-options' => esc_html__( 'Advanced Options', 'give' )
+				'advanced-options' => __( 'Advanced Options', 'give' ),
 			);
 
 			return apply_filters( 'give_get_sections_' . $this->id, $sections );
+		}
+
+
+		/**
+		 *  Render remove_cache_button field type
+		 *
+		 * @since  2.1
+		 * @access public
+		 *
+		 * @param array $field
+		 */
+		public function render_remove_cache_button( $field ) {
+			?>
+			<tr valign="top" <?php echo ! empty( $field['wrapper_class'] ) ? 'class="' . $field['wrapper_class'] . '"' : '' ?>>
+				<th scope="row" class="titledesc">
+					<label
+						for="<?php echo esc_attr( $field['id'] ); ?>"><?php echo esc_html( $field['name'] ) ?></label>
+				</th>
+				<td class="give-forminp">
+					<button type="button" id="<?php echo esc_attr( $field['id'] ); ?>"
+					        class="button button-secondary"><?php echo esc_html( $field['buttonTitle'] ) ?></button>
+					<?php echo Give_Admin_Settings::get_field_description( $field ); ?>
+				</td>
+			</tr>
+			<?php
+		}
+
+
+		/**
+		 * Validate setting
+		 *
+		 * @since  2.2.0
+		 * @access public
+		 *
+		 * @param array $options
+		 */
+		public function validate_settngs( $options ) {
+			// Sanitize data.
+			$akismet_spam_protection = isset( $options['akismet_spam_protection'] )
+				? $options['akismet_spam_protection']
+				: ( give_check_akismet_key() ? 'enabled' : 'disabled' );
+
+			// Show error message if Akismet not configured and Admin try to save 'enabled' option.
+			if (
+				give_is_setting_enabled( $akismet_spam_protection )
+				&& ! give_check_akismet_key()
+			) {
+				Give_Admin_Settings::add_error(
+					'give-akismet-protection',
+					__( 'Please properly configure Akismet to enable SPAM protection.', 'give' )
+				);
+
+				give_update_option( 'akismet_spam_protection', 'disabled' );
+			}
 		}
 	}
 

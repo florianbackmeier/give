@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Functions
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -30,203 +30,6 @@ function give_is_test_mode() {
 }
 
 /**
- * Get the set currency
- *
- * @since 1.0
- * @return string The currency code
- */
-function give_get_currency() {
-
-	$currency = give_get_option( 'currency', 'USD' );
-
-	return apply_filters( 'give_currency', $currency );
-}
-
-/**
- * Get the set currency position
- *
- * @since 1.3.6
- *
- * @return string The currency code
- */
-function give_get_currency_position() {
-
-	$currency_pos = give_get_option( 'currency_position', 'before' );
-
-	return apply_filters( 'give_currency_position', $currency_pos );
-}
-
-
-/**
- * Get Currencies
- *
- * @since 1.0
- * @return array $currencies A list of the available currencies
- */
-
-function give_get_currencies() {
-	$currencies = array(
-		'USD'  => __( 'US Dollars ($)', 'give' ),
-		'EUR'  => __( 'Euros (€)', 'give' ),
-		'GBP'  => __( 'Pounds Sterling (£)', 'give' ),
-		'AUD'  => __( 'Australian Dollars ($)', 'give' ),
-		'BRL'  => __( 'Brazilian Real (R$)', 'give' ),
-		'CAD'  => __( 'Canadian Dollars ($)', 'give' ),
-		'CZK'  => __( 'Czech Koruna (Kč)', 'give' ),
-		'DKK'  => __( 'Danish Krone (kr.)', 'give' ),
-		'HKD'  => __( 'Hong Kong Dollar ($)', 'give' ),
-		'HUF'  => __( 'Hungarian Forint (Ft)', 'give' ),
-		'ILS'  => __( 'Israeli Shekel (₪)', 'give' ),
-		'JPY'  => __( 'Japanese Yen (¥)', 'give' ),
-		'MYR'  => __( 'Malaysian Ringgits (RM)', 'give' ),
-		'MXN'  => __( 'Mexican Peso ($)', 'give' ),
-		'MAD'  => __( 'Moroccan Dirham (&#x2e;&#x62f;&#x2e;&#x645;)', 'give' ),
-		'NZD'  => __( 'New Zealand Dollar ($)', 'give' ),
-		'NOK'  => __( 'Norwegian Krone (Kr.)', 'give' ),
-		'PHP'  => __( 'Philippine Pesos (₱)', 'give' ),
-		'PLN'  => __( 'Polish Zloty (zł)', 'give' ),
-		'SGD'  => __( 'Singapore Dollar ($)', 'give' ),
-		'KRW'  => __( 'South Korean Won (₩)', 'give' ),
-		'ZAR'  => __( 'South African Rand (R)', 'give' ),
-		'SEK'  => __( 'Swedish Krona (kr)', 'give' ),
-		'CHF'  => __( 'Swiss Franc (CHF)', 'give' ),
-		'TWD'  => __( 'Taiwan New Dollars (NT$)', 'give' ),
-		'THB'  => __( 'Thai Baht (฿)', 'give' ),
-		'INR'  => __( 'Indian Rupee (₹)', 'give' ),
-		'TRY'  => __( 'Turkish Lira (₺)', 'give' ),
-		'RIAL' => __( 'Iranian Rial (﷼)', 'give' ),
-		'RUB'  => __( 'Russian Rubles (руб)', 'give' ),
-	);
-
-	return apply_filters( 'give_currencies', $currencies );
-}
-
-
-/**
- * Give Currency Symbol
- *
- * Given a currency determine the symbol to use. If no currency given, site default is used. If no symbol is determine,
- * the currency string is returned.
- *
- * @since      1.0
- *
- * @param  string $currency        The currency string.
- * @param  bool   $decode_currency Option to HTML decode the currency symbol.
- *
- * @return string           The symbol to use for the currency
- */
-function give_currency_symbol( $currency = '', $decode_currency = false ) {
-
-	if ( empty( $currency ) ) {
-		$currency = give_get_currency();
-	}
-	switch ( $currency ) :
-		case 'GBP' :
-			$symbol = '&pound;';
-			break;
-		case 'BRL' :
-			$symbol = '&#82;&#36;';
-			break;
-		case 'EUR' :
-			$symbol = '&euro;';
-			break;
-		case 'NOK' :
-			$symbol = '&#107;&#114;.';
-			break;
-		case 'INR' :
-			$symbol = '&#8377;';
-			break;
-		case 'USD' :
-		case 'AUD' :
-		case 'CAD' :
-		case 'HKD' :
-		case 'MXN' :
-		case 'SGD' :
-			$symbol = '&#36;';
-			break;
-		case 'JPY' :
-			$symbol = '&yen;';
-			break;
-		case 'THB' :
-			$symbol = '&#3647;';
-			break;
-		case 'TRY' :
-			$symbol = '&#8378;';
-			break;
-		case 'TWD' :
-			$symbol = '&#78;&#84;&#36;';
-			break;
-		case 'ILS' :
-			$symbol = '&#8362;';
-			break;
-		case 'RIAL' :
-			$symbol = '&#xfdfc;';
-			break;
-		case 'RUB' :
-			$symbol = '&#8381;';
-			break;
-		case 'DKK' :
-		case 'SEK' :
-			$symbol = '&nbsp;kr.&nbsp;';
-			break;
-		case 'PLN' :
-			$symbol = '&#122;&#322;';
-			break;
-		case 'PHP' :
-			$symbol = '&#8369;';
-			break;
-		case 'MYR' :
-			$symbol = '&#82;&#77;';
-			break;
-		case 'HUF' :
-			$symbol = '&#70;&#116;';
-			break;
-		case 'CZK' :
-			$symbol = '&#75;&#269;';
-			break;
-		case 'KRW' :
-			$symbol = '&#8361;';
-			break;
-		case 'ZAR' :
-			$symbol = '&#82;';
-			break;
-		case 'MAD' :
-			$symbol = '&#x2e;&#x62f;&#x2e;&#x645;';
-			break;
-		default :
-			$symbol = $currency;
-			break;
-	endswitch;
-
-	$symbol = ( ! $decode_currency ? $symbol : html_entity_decode( $symbol ) );
-
-	return apply_filters( 'give_currency_symbol', $symbol, $currency );
-}
-
-
-/**
- * Get currency name.
- *
- * @since 1.8.8
- *
- * @param string $currency_code
- *
- * @return string
- */
-function give_get_currency_name( $currency_code ) {
-	$currency_name  = '';
-	$currency_names = give_get_currencies();
-
-	if ( $currency_code && array_key_exists( $currency_code, $currency_names ) ) {
-		$currency_name = explode( '(', $currency_names[ $currency_code ] );
-		$currency_name = trim( current( $currency_name ) );
-	}
-
-	return apply_filters( 'give_currency_name', $currency_name, $currency_code );
-}
-
-
-/**
  * Get the current page URL.
  *
  * @since 1.0
@@ -250,6 +53,13 @@ function give_get_current_page_url() {
 		$current_uri = home_url( '/' );
 	}
 
+	/**
+	 * Filter the current page url
+	 *
+	 * @since 1.0
+	 *
+	 * @param string $current_uri
+	 */
 	return apply_filters( 'give_get_current_page_url', $current_uri );
 
 }
@@ -280,7 +90,14 @@ function give_is_cc_verify_enabled() {
 		$ret = false;
 	}
 
-	return (bool) apply_filters( 'give_verify_credit_cards', $ret );
+	/**
+	 * Fire the filter
+	 *
+	 * @since 1.0
+	 *
+	 * @param bool $ret
+	 */
+	return (bool) apply_filters( 'give_is_cc_verify_enabled', $ret );
 }
 
 /**
@@ -345,7 +162,23 @@ function give_get_ip() {
 		$ip = $_SERVER['REMOTE_ADDR'];
 	}
 
-	return apply_filters( 'give_get_ip', $ip );
+	/**
+	 * Filter the IP
+	 *
+	 * @since 1.0
+	 */
+	$ip = apply_filters( 'give_get_ip', $ip );
+
+	// Filter empty values.
+	if ( false !== strpos( $ip, ',' ) ) {
+		$ip = give_clean( explode( ',', $ip ) );
+		$ip = array_filter( $ip );
+		$ip = implode( ',', $ip );
+	} else {
+		$ip = give_clean( $ip );
+	}
+
+	return $ip;
 }
 
 
@@ -380,6 +213,74 @@ function give_get_purchase_session() {
 }
 
 /**
+ * Retrieve Payment Key of the Receipt Access Session.
+ *
+ * @since 1.8.17
+ *
+ * @return array|string
+ */
+function give_get_receipt_session() {
+	return Give()->session->get( 'receipt_access' );
+}
+
+/**
+ * Retrieve Payment Key of the History Access Session.
+ *
+ * @since 1.8.17
+ *
+ * @return array|string
+ */
+function give_get_history_session() {
+	return (bool) Give()->session->get( 'history_access' );
+}
+
+/**
+ * Generate Item Title for Payment Gateway.
+ *
+ * @param array $payment_data Payment Data.
+ *
+ * @since 1.8.14
+ *
+ * @return string By default, the name of the form. Then the price level text if any is found.
+ */
+function give_payment_gateway_item_title( $payment_data ) {
+
+	$form_id   = intval( $payment_data['post_data']['give-form-id'] );
+	$item_name = isset( $payment_data['post_data']['give-form-title'] ) ? $payment_data['post_data']['give-form-title'] : '';
+	$price_id  = isset( $payment_data['post_data']['give-price-id'] ) ? $payment_data['post_data']['give-price-id'] : '';
+
+	// Verify has variable prices.
+	if ( give_has_variable_prices( $form_id ) && ! empty( $price_id ) ) {
+
+		$item_price_level_text = give_get_price_option_name( $form_id, $price_id, 0, false );
+
+		/**
+		 * Output donation level text if:
+		 *
+		 * 1. It's not a custom amount
+		 * 2. The level field has actual text and isn't the amount (which is already displayed on the receipt).
+		 */
+		if ( 'custom' !== $price_id && ! empty( $item_price_level_text ) ) {
+			// Matches a donation level - append level text.
+			$item_name .= ' - ' . $item_price_level_text;
+		}
+	}
+
+	/**
+	 * Filter the Item Title of Payment Gateway.
+	 *
+	 * @param string $item_name    Item Title of Payment Gateway.
+	 * @param int    $form_id      Donation Form ID.
+	 * @param array  $payment_data Payment Data.
+	 *
+	 * @since 1.8.14
+	 *
+	 * @return string
+	 */
+	return apply_filters( 'give_payment_gateway_item_title', $item_name, $form_id, $payment_data );
+}
+
+/**
  * Get Donation Summary
  *
  * Creates a donation summary for payment gateways from the donation data before the payment is created in the database.
@@ -394,16 +295,14 @@ function give_get_purchase_session() {
  */
 function give_payment_gateway_donation_summary( $donation_data, $name_and_email = true, $length = 255 ) {
 
-	$summary = '';
-
-	$form_id = isset( $donation_data['post_data']['give-form-id'] ) ? $donation_data['post_data']['give-form-id'] : '';
+	$form_id  = isset( $donation_data['post_data']['give-form-id'] ) ? $donation_data['post_data']['give-form-id'] : '';
+	$price_id = isset( $donation_data['post_data']['give-price-id'] ) ? $donation_data['post_data']['give-price-id'] : '';
 
 	// Form title.
-	if ( isset( $donation_data['post_data']['give-form-title'] ) ) {
-		$summary .= $donation_data['post_data']['give-form-title'];
-	}
+	$summary = ( ! empty( $donation_data['post_data']['give-form-title'] ) ? $donation_data['post_data']['give-form-title'] : ( ! empty( $form_id ) ? wp_sprintf( __( 'Donation Form ID: %d', 'give' ), $form_id ) : __( 'Untitled donation form', 'give' ) ) );
+
 	// Form multilevel if applicable.
-	if ( isset( $donation_data['post_data']['give-price-id'] ) ) {
+	if ( ! empty( $price_id ) && 'custom' !== $price_id ) {
 		$summary .= ': ' . give_get_price_option_name( $form_id, $donation_data['post_data']['give-price-id'] );
 	}
 
@@ -438,12 +337,16 @@ function give_payment_gateway_donation_summary( $donation_data, $name_and_email 
  * @return string $host if detected, false otherwise
  */
 function give_get_host() {
-	$host = false;
+	$find_host = gethostname();
 
-	if ( defined( 'WPE_APIKEY' ) ) {
+	if ( strpos( $find_host, 'sgvps.net' ) ) {
+		$host = 'Siteground';
+	} elseif ( defined( 'WPE_APIKEY' ) ) {
 		$host = 'WP Engine';
-	} elseif ( defined( 'PAGELYBIN' ) ) {
+	} elseif ( defined( 'PAGELYBIN' ) || strpos( $find_host, 'pagelyhosting.com' ) ) {
 		$host = 'Pagely';
+	} elseif ( strpos( $find_host, 'secureserver.net') ) {
+		$host = "GoDaddy/Media Temple";
 	} elseif ( DB_HOST == 'localhost:/tmp/mysql5.sock' ) {
 		$host = 'ICDSoft';
 	} elseif ( DB_HOST == 'mysqlv5' ) {
@@ -460,7 +363,7 @@ function give_get_host() {
 		$host = 'Rackspace Cloud';
 	} elseif ( strpos( DB_HOST, '.sysfix.eu' ) !== false ) {
 		$host = 'SysFix.eu Power Hosting';
-	} elseif ( strpos( $_SERVER['SERVER_NAME'], 'Flywheel' ) !== false ) {
+	} elseif ( strpos( $_SERVER['SERVER_NAME'], 'Flywheel' ) !== false || strpos( $find_host, 'fw' ) ) {
 		$host = 'Flywheel';
 	} else {
 		// Adding a general fallback for data gathering
@@ -468,88 +371,6 @@ function give_get_host() {
 	}
 
 	return $host;
-}
-
-
-/**
- * Check site host
- *
- * @since 1.0
- *
- * @param bool /string $host The host to check
- *
- * @return bool true if host matches, false if not
- */
-function give_is_host( $host = false ) {
-
-	$return = false;
-
-	if ( $host ) {
-		$host = str_replace( ' ', '', strtolower( $host ) );
-
-		switch ( $host ) {
-			case 'wpengine':
-				if ( defined( 'WPE_APIKEY' ) ) {
-					$return = true;
-				}
-				break;
-			case 'pagely':
-				if ( defined( 'PAGELYBIN' ) ) {
-					$return = true;
-				}
-				break;
-			case 'icdsoft':
-				if ( DB_HOST == 'localhost:/tmp/mysql5.sock' ) {
-					$return = true;
-				}
-				break;
-			case 'networksolutions':
-				if ( DB_HOST == 'mysqlv5' ) {
-					$return = true;
-				}
-				break;
-			case 'ipage':
-				if ( strpos( DB_HOST, 'ipagemysql.com' ) !== false ) {
-					$return = true;
-				}
-				break;
-			case 'ipower':
-				if ( strpos( DB_HOST, 'ipowermysql.com' ) !== false ) {
-					$return = true;
-				}
-				break;
-			case 'mediatemplegrid':
-				if ( strpos( DB_HOST, '.gridserver.com' ) !== false ) {
-					$return = true;
-				}
-				break;
-			case 'pairnetworks':
-				if ( strpos( DB_HOST, '.pair.com' ) !== false ) {
-					$return = true;
-				}
-				break;
-			case 'rackspacecloud':
-				if ( strpos( DB_HOST, '.stabletransit.com' ) !== false ) {
-					$return = true;
-				}
-				break;
-			case 'sysfix.eu':
-			case 'sysfix.eupowerhosting':
-				if ( strpos( DB_HOST, '.sysfix.eu' ) !== false ) {
-					$return = true;
-				}
-				break;
-			case 'flywheel':
-				if ( strpos( $_SERVER['SERVER_NAME'], 'Flywheel' ) !== false ) {
-					$return = true;
-				}
-				break;
-			default:
-				$return = false;
-		}// End switch().
-	}// End if().
-
-	return $return;
 }
 
 /**
@@ -612,17 +433,11 @@ function _give_deprecated_function( $function, $version, $replacement = null, $b
  * @return string $post_id
  */
 function give_get_admin_post_id() {
-	$post_id = isset( $_REQUEST['post'] )
-		? absint( $_REQUEST['post'] )
-		: null;
+	$post_id = isset( $_REQUEST['post'] ) ? absint( $_REQUEST['post'] ) : null;
 
-	$post_id = ! empty( $post_id )
-		? $post_id
-		: ( isset( $_REQUEST['post_id'] ) ? absint( $_REQUEST['post_id'] ) : null );
+	$post_id = ! empty( $post_id ) ? $post_id : ( isset( $_REQUEST['post_id'] ) ? absint( $_REQUEST['post_id'] ) : null );
 
-	$post_id = ! empty( $post_id )
-		? $post_id
-		: ( isset( $_REQUEST['post_ID'] ) ? absint( $_REQUEST['post_ID'] ) : null );
+	$post_id = ! empty( $post_id ) ? $post_id : ( isset( $_REQUEST['post_ID'] ) ? absint( $_REQUEST['post_ID'] ) : null );
 
 	return $post_id;
 }
@@ -671,7 +486,6 @@ function give_is_func_disabled( $function ) {
 	return in_array( $function, $disabled );
 }
 
-
 /**
  * Give Newsletter
  *
@@ -685,36 +499,36 @@ function give_get_newsletter() {
 	<div class="give-newsletter-form-wrap">
 
 		<form action="//givewp.us3.list-manage.com/subscribe/post?u=3ccb75d68bda4381e2f45794c&amp;id=12a081aa13"
-		      method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate"
-		      target="_blank" novalidate>
+			  method="post" id="mc-embedded-subscribe-form" name="mc-embedded-subscribe-form" class="validate"
+			  target="_blank">
 			<div class="give-newsletter-confirmation">
-				<p><?php esc_html_e( 'Thanks for Subscribing!', 'give' ); ?> :)</p>
+				<p><?php esc_html_e( 'To complete your subscription, click the confirmation link in your email. Thank you!', 'give' ); ?></p>
 			</div>
 
 			<table class="form-table give-newsletter-form">
 				<tr valign="middle">
 					<td>
 						<label for="mce-EMAIL"
-						       class="screen-reader-text"><?php esc_html_e( 'Email Address (required)', 'give' ); ?></label>
+							   class="screen-reader-text"><?php esc_html_e( 'Email Address (required)', 'give' ); ?></label>
 						<input type="email" name="EMAIL" id="mce-EMAIL"
-						       placeholder="<?php esc_attr_e( 'Email Address (required)', 'give' ); ?>"
-						       class="required email" value="">
+							   placeholder="<?php esc_attr_e( 'Email Address (required)', 'give' ); ?>"
+							   class="required email" value="" required>
 					</td>
 					<td>
 						<label for="mce-FNAME"
-						       class="screen-reader-text"><?php esc_html_e( 'First Name', 'give' ); ?></label>
+							   class="screen-reader-text"><?php esc_html_e( 'First Name', 'give' ); ?></label>
 						<input type="text" name="FNAME" id="mce-FNAME"
-						       placeholder="<?php esc_attr_e( 'First Name', 'give' ); ?>" class="" value="">
+							   placeholder="<?php esc_attr_e( 'First Name', 'give' ); ?>" class="" value="" required>
 					</td>
 					<td>
 						<label for="mce-LNAME"
-						       class="screen-reader-text"><?php esc_html_e( 'Last Name', 'give' ); ?></label>
+							   class="screen-reader-text"><?php esc_html_e( 'Last Name', 'give' ); ?></label>
 						<input type="text" name="LNAME" id="mce-LNAME"
-						       placeholder="<?php esc_attr_e( 'Last Name', 'give' ); ?>" class="" value="">
+							   placeholder="<?php esc_attr_e( 'Last Name', 'give' ); ?>" class="" value="">
 					</td>
 					<td>
 						<input type="submit" name="subscribe" id="mc-embedded-subscribe" class="button"
-						       value="<?php esc_attr_e( 'Subscribe', 'give' ); ?>">
+							   value="<?php esc_attr_e( 'Subscribe', 'give' ); ?>">
 					</td>
 				</tr>
 			</table>
@@ -727,7 +541,8 @@ function give_get_newsletter() {
 	</div>
 
 	<script type='text/javascript' src='//s3.amazonaws.com/downloads.mailchimp.com/js/mc-validate.js'></script>
-	<script type='text/javascript'>(function( $ ) {
+	<script type='text/javascript'>(
+			function( $ ) {
 				window.fnames = new Array();
 				window.ftypes = new Array();
 				fnames[ 0 ] = 'EMAIL';
@@ -736,6 +551,8 @@ function give_get_newsletter() {
 				ftypes[ 1 ] = 'text';
 				fnames[ 2 ] = 'LNAME';
 				ftypes[ 2 ] = 'text';
+
+				$( 'form[name="mc-embedded-subscribe-form"]' ).removeAttr( 'novalidate' );
 
 				//Successful submission
 				$( 'form[name="mc-embedded-subscribe-form"]' ).on( 'submit', function() {
@@ -749,14 +566,16 @@ function give_get_newsletter() {
 
 				} );
 
-			}( jQuery ));
-			var $mcj = jQuery.noConflict( true );
+			}( jQuery )
+		);
+		var $mcj = jQuery.noConflict( true );
 
 
 	</script>
 	<!--End mc_embed_signup-->
 
-<?php }
+	<?php
+}
 
 
 /**
@@ -801,30 +620,44 @@ function modify_nav_menu_meta_box_object( $post_type ) {
 add_filter( 'nav_menu_meta_box_object', 'modify_nav_menu_meta_box_object' );
 
 /**
- * Enable 'Donation Form' meta enabled by default on Menu page.
+ * Show Donation Forms Post Type in Appearance > Menus by default on fresh install.
  *
- * @since 1.8.9
+ * @since 1.8.14
+ *
+ * @todo  Remove this, when WordPress Core ticket is resolved (https://core.trac.wordpress.org/ticket/16828).
+ *
+ * @return bool
  */
-function give_nav_donation_metabox_enabled() {
+function give_donation_metabox_menu() {
 
-	// Return false, if it fails to retrieve hidden meta box list and is not admin.
-	if ( ( ! $hidden_meta_boxes = get_user_option( 'metaboxhidden_nav-menus' ) ) || ! is_admin() ) {
-		return false;
+	// Get Current Screen.
+	$screen = get_current_screen();
+
+	// Proceed, if current screen is navigation menus.
+	if ( 'nav-menus' === $screen->id && give_is_setting_enabled( give_get_option( 'forms_singular' ) ) && ! get_user_option( 'give_is_donation_forms_menu_updated' ) ) {
+
+		// Return false, if it fails to retrieve hidden meta box list and is not admin.
+		if ( ! is_admin() || ( ! $hidden_meta_boxes = get_user_option( 'metaboxhidden_nav-menus' ) ) ) {
+			return false;
+		}
+
+		// Return false, In case, we don't find 'Donation Form' in hidden meta box list.
+		if ( ! in_array( 'add-post-type-give_forms', $hidden_meta_boxes, true ) ) {
+			return false;
+		}
+
+		// Exclude 'Donation Form' value from hidden meta box's list.
+		$hidden_meta_boxes = array_diff( $hidden_meta_boxes, array( 'add-post-type-give_forms' ) );
+
+		// Get current user ID.
+		$user = wp_get_current_user();
+
+		update_user_option( $user->ID, 'metaboxhidden_nav-menus', $hidden_meta_boxes, true );
+		update_user_option( $user->ID, 'give_is_donation_forms_menu_updated', true, true );
 	}
-
-	// Return false, In case, we don't find 'Donation Form' in hidden meta box list.
-	if ( ! in_array( 'add-post-type-give_forms', $hidden_meta_boxes, true ) ) {
-		return false;
-	}
-
-	// Exclude 'Donation Form' value from hidden meta box's list.
-	$hidden_meta_boxes = array_diff( $hidden_meta_boxes, array( 'add-post-type-give_forms' ) );
-
-	// Get current user ID.
-	$user = wp_get_current_user();
-
-	update_user_option( $user->ID, 'metaboxhidden_nav-menus', $hidden_meta_boxes, true );
 }
+
+add_action( 'current_screen', 'give_donation_metabox_menu' );
 
 /**
  * Array_column backup usage
@@ -875,23 +708,13 @@ if ( ! function_exists( 'array_column' ) ) {
 			return null;
 		}
 
-		if ( ! is_int( $params[1] )
-		     && ! is_float( $params[1] )
-		     && ! is_string( $params[1] )
-		     && $params[1] !== null
-		     && ! ( is_object( $params[1] ) && method_exists( $params[1], '__toString' ) )
-		) {
+		if ( ! is_int( $params[1] ) && ! is_float( $params[1] ) && ! is_string( $params[1] ) && $params[1] !== null && ! ( is_object( $params[1] ) && method_exists( $params[1], '__toString' ) ) ) {
 			trigger_error( esc_html__( 'array_column(): The column key should be either a string or an integer.', 'give' ), E_USER_WARNING );
 
 			return false;
 		}
 
-		if ( isset( $params[2] )
-		     && ! is_int( $params[2] )
-		     && ! is_float( $params[2] )
-		     && ! is_string( $params[2] )
-		     && ! ( is_object( $params[2] ) && method_exists( $params[2], '__toString' ) )
-		) {
+		if ( isset( $params[2] ) && ! is_int( $params[2] ) && ! is_float( $params[2] ) && ! is_string( $params[2] ) && ! ( is_object( $params[2] ) && method_exists( $params[2], '__toString' ) ) ) {
 			trigger_error( esc_html__( 'array_column(): The index key should be either a string or an integer.', 'give' ), E_USER_WARNING );
 
 			return false;
@@ -946,44 +769,86 @@ if ( ! function_exists( 'array_column' ) ) {
  *
  * @since 1.3.2
  *
- * @param string $payment_key
+ * @param int $donation_id Donation ID.
  *
  * @return bool Whether the receipt is visible or not.
  */
-function give_can_view_receipt( $payment_key = '' ) {
-
-	$return = false;
-
-	if ( empty( $payment_key ) ) {
-		return $return;
-	}
+function give_can_view_receipt( $donation_id ) {
 
 	global $give_receipt_args;
 
-	$give_receipt_args['id'] = give_get_purchase_id_by_key( $payment_key );
+	$donor            = false;
+	$can_view_receipt = false;
 
-	$user_id = (int) give_get_payment_user_id( $give_receipt_args['id'] );
+	// Bail out, if donation id doesn't exist.
+	if ( empty( $donation_id ) ) {
+		return $can_view_receipt;
+	}
 
-	$payment_meta = give_get_payment_meta( $give_receipt_args['id'] );
+	$give_receipt_args['id'] = $donation_id;
 
-	if ( is_user_logged_in() ) {
-		if ( $user_id === (int) get_current_user_id() ) {
-			$return = true;
-		} elseif ( wp_get_current_user()->user_email === give_get_payment_user_email( $give_receipt_args['id'] ) ) {
-			$return = true;
-		} elseif ( current_user_can( 'view_give_sensitive_data' ) ) {
-			$return = true;
+	// Add backward compatibility.
+	if ( ! is_numeric( $donation_id ) ) {
+		$give_receipt_args['id'] = give_get_donation_id_by_key( $donation_id );
+	}
+
+	// Return to download receipts from admin panel.
+	if ( current_user_can( 'export_give_reports' ) ) {
+
+		/**
+		 * This filter will be used to modify can view receipt response when accessed from admin.
+		 *
+		 * @since 2.3.1
+		 */
+		return apply_filters( 'give_can_admin_view_receipt', true );
+	}
+
+	if ( is_user_logged_in() || current_user_can( 'view_give_sensitive_data' ) ) {
+
+		// Proceed only, if user is logged in or can view sensitive Give data.
+		$donor = Give()->donors->get_donor_by( 'user_id', get_current_user_id() );
+
+	} elseif ( ! is_user_logged_in() ) {
+
+		// Check whether it is purchase session?
+		// This condition is to show receipt to donor after donation.
+		$purchase_session = give_get_purchase_session();
+
+		if (
+			! empty( $purchase_session )
+			&& absint( $purchase_session['donation_id'] ) === absint( $donation_id )
+		) {
+			$donor = Give()->donors->get_donor_by( 'email', $purchase_session['user_email'] );
+		}
+
+		// Check whether it is receipt access session?
+		$receipt_session    = give_get_receipt_session();
+		$email_access_token = ! empty( $_COOKIE['give_nl'] ) ? give_clean( $_COOKIE['give_nl'] ) : false;
+
+		if (
+			! empty( $receipt_session ) ||
+			(
+				give_is_setting_enabled( give_get_option( 'email_access' ) ) &&
+				! empty( $email_access_token )
+			)
+		) {
+			$donor = ! empty( $email_access_token )
+				? Give()->donors->get_donor_by_token( $email_access_token )
+				: false;
 		}
 	}
 
-	$session = give_get_purchase_session();
-	if ( ! empty( $session ) && ! is_user_logged_in() ) {
-		if ( $session['purchase_key'] === $payment_meta['key'] ) {
-			$return = true;
+	// If donor object exists, compare the donation ids of donor with the donation receipt donor tries to access.
+	if ( is_object( $donor ) ) {
+		$is_donor_donated = in_array( (int) $donation_id, array_map( 'absint', explode( ',', $donor->payment_ids ) ), true );
+		$can_view_receipt = $is_donor_donated ? true : $can_view_receipt;
+
+		if ( ! $is_donor_donated ) {
+			Give()->session->set( 'donor_donation_mismatch', true );
 		}
 	}
 
-	return (bool) apply_filters( 'give_can_view_receipt', $return, $payment_key );
+	return (bool) apply_filters( 'give_can_view_receipt', $can_view_receipt, $donation_id );
 
 }
 
@@ -1039,15 +904,16 @@ function give_get_plugins() {
 
 		$dirname = strtolower( dirname( $plugin_path ) );
 
-		// Is plugin a Give add-on by WordImpress?
-		if ( strstr( $dirname, 'give-' ) && strstr( $plugin_data['AuthorURI'], 'wordimpress.com' ) ) {
+		// Is the plugin a Give add-on?
+		if (
+			false !== strpos( $dirname, 'give-' )
+			&& in_array( $plugin_data['Author'], array( 'WordImpress', 'GiveWP' ) )
+		) {
 			// Plugin is a Give-addon.
 			$plugins[ $plugin_path ]['Type'] = 'add-on';
 
-			// Get license info from database.
-			$plugin_name    = str_replace( 'Give - ', '', $plugin_data['Name'] );
-			$db_option      = 'give_' . preg_replace( '/[^a-zA-Z0-9_\s]/', '', str_replace( ' ', '_', strtolower( $plugin_name ) ) ) . '_license_active';
-			$license_active = get_option( $db_option );
+			/* @var stdClass $license_active */
+			$license_active = __give_get_active_license_info( Give_License::get_short_name( $plugin_data['Name'] ) );
 
 			// Does a valid license exist?
 			if ( ! empty( $license_active ) && 'valid' === $license_active->license ) {
@@ -1064,7 +930,6 @@ function give_get_plugins() {
 	return $plugins;
 }
 
-
 /**
  * Check if terms enabled or not for form.
  *
@@ -1077,10 +942,7 @@ function give_get_plugins() {
 function give_is_terms_enabled( $form_id ) {
 	$form_option = give_get_meta( $form_id, '_give_terms_option', true );
 
-	if (
-		give_is_setting_enabled( $form_option, 'global' )
-		&& give_is_setting_enabled( give_get_option( 'terms' ) )
-	) {
+	if ( give_is_setting_enabled( $form_option, 'global' ) && give_is_setting_enabled( give_get_option( 'terms' ) ) ) {
 		return true;
 
 	} elseif ( give_is_setting_enabled( $form_option ) ) {
@@ -1091,7 +953,6 @@ function give_is_terms_enabled( $form_id ) {
 	}
 }
 
-
 /**
  * Delete donation stats cache.
  *
@@ -1100,14 +961,16 @@ function give_is_terms_enabled( $form_id ) {
  * @since 1.8.7
  *
  * @param string|array $date_range Date for stats.
- *                                 Date value should be in today, yesterday, this_week, last_week, this_month, last_month, this_quarter, last_quarter, this_year, last_year.
- *                                 For date value other, all cache will be removed.
+ *                                 Date value should be in today, yesterday, this_week, last_week, this_month,
+ *                                 last_month, this_quarter, last_quarter, this_year, last_year. For date value other,
+ *                                 all cache will be removed.
  *
  * @param array        $args
  *
  * @return WP_Error|bool
  */
 function give_delete_donation_stats( $date_range = '', $args = array() ) {
+
 	// Delete all cache.
 	$status = Give_Cache::delete( Give_Cache::get_options_like( 'give_stats' ) );
 
@@ -1143,33 +1006,46 @@ function give_is_add_new_form_page() {
 /**
  * Get Form/Payment meta.
  *
+ * Note: This function will help you to get meta for payment and form.
+ *       If you want to get meta for donors then use get_meta of Give_Donor and
+ *       If you want to get meta for logs then use get_meta of Give_Logging->logmeta_db.
+ *
  * @since 1.8.8
  *
  * @param int    $id
  * @param string $meta_key
  * @param bool   $single
  * @param bool   $default
+ * @param string $meta_type
  *
  * @return mixed
  */
-function give_get_meta( $id, $meta_key, $single = false, $default = false ) {
+function give_get_meta( $id, $meta_key = '', $single = false, $default = false, $meta_type = '' ) {
+	switch ( $meta_type ) {
+		case 'donation':
+			$meta_value = Give()->payment_meta->get_meta( $id, $meta_key, $single );
+			break;
+
+		case 'form':
+			$meta_value = Give()->form_meta->get_meta( $id, $meta_key, $single );
+			break;
+
+		case 'donor':
+			$meta_value = Give()->donor_meta->get_meta( $id, $meta_key, $single );
+			break;
+
+		default:
+			$meta_value = get_post_meta( $id, $meta_key, $single );
+	}
+
 	/**
 	 * Filter the meta value
 	 *
 	 * @since 1.8.8
 	 */
-	$meta_value = apply_filters(
-		'give_get_meta',
-		get_post_meta( $id, $meta_key, $single ),
-		$id,
-		$meta_key,
-		$default
-	);
+	$meta_value = apply_filters( 'give_get_meta', $meta_value, $id, $meta_key, $default, $meta_value );
 
-	if (
-		( empty( $meta_key ) || empty( $meta_value ) )
-		&& $default
-	) {
+	if ( ( empty( $meta_key ) || empty( $meta_value ) ) && $default ) {
 		$meta_value = $default;
 	}
 
@@ -1183,20 +1059,36 @@ function give_get_meta( $id, $meta_key, $single = false, $default = false ) {
  *
  * @param int    $id
  * @param string $meta_key
- * @param string $meta_value
- * @param string $prev_value
+ * @param mixed  $meta_value
+ * @param mixed  $prev_value
+ * @param string  $meta_type
  *
  * @return mixed
  */
-function give_update_meta( $id, $meta_key, $meta_value, $prev_value = '' ) {
-	$status = update_post_meta( $id, $meta_key, $meta_value, $prev_value );
+function give_update_meta( $id, $meta_key, $meta_value, $prev_value = '', $meta_type = '' ) {
+	switch ( $meta_type ) {
+		case 'donation':
+			$status = Give()->payment_meta->update_meta( $id, $meta_key, $meta_value, $prev_value );
+			break;
+
+		case 'form':
+			$status = Give()->form_meta->update_meta( $id, $meta_key, $meta_value, $prev_value );
+			break;
+
+		case 'donor':
+			$status = Give()->donor_meta->update_meta( $id, $meta_key, $meta_value, $prev_value );
+			break;
+
+		default:
+			$status = update_post_meta( $id, $meta_key, $meta_value, $prev_value );
+	}
 
 	/**
 	 * Filter the meta value update status
 	 *
 	 * @since 1.8.8
 	 */
-	return apply_filters( 'give_update_meta', $status, $id, $meta_key, $meta_value );
+	return apply_filters( 'give_update_meta', $status, $id, $meta_key, $meta_value, $meta_type );
 }
 
 /**
@@ -1207,44 +1099,35 @@ function give_update_meta( $id, $meta_key, $meta_value, $prev_value = '' ) {
  * @param int    $id
  * @param string $meta_key
  * @param string $meta_value
+ * @param string $meta_type
  *
  * @return mixed
  */
-function give_delete_meta( $id, $meta_key, $meta_value = '' ) {
-	$status = delete_post_meta( $id, $meta_key, $meta_value );
+function give_delete_meta( $id, $meta_key, $meta_value = '', $meta_type = '' ) {
+	switch ( $meta_type ) {
+		case 'donation':
+			$status = Give()->payment_meta->delete_meta( $id, $meta_key, $meta_value );
+			break;
+
+		case 'form':
+			$status = Give()->form_meta->delete_meta( $id, $meta_key, $meta_value );
+			break;
+
+		case 'donor':
+			$status = Give()->donor_meta->delete_meta( $id, $meta_key, $meta_value );
+			break;
+
+		default:
+			$status = delete_post_meta( $id, $meta_key, $meta_value );
+	}
 
 	/**
 	 * Filter the meta value delete status
 	 *
 	 * @since 1.8.8
 	 */
-	return apply_filters( 'give_delete_meta', $status, $id, $meta_key, $meta_value );
+	return apply_filters( 'give_delete_meta', $status, $id, $meta_key, $meta_value, $meta_type );
 }
-
-
-/**
- * Get attribute string
- *
- * @since 2.0
- *
- * @param array $attributes
- *
- * @return string
- */
-function give_get_attribute_str( $attributes ) {
-	$attribute_str = '';
-
-	if ( empty( $attributes ) ) {
-		return $attribute_str;
-	}
-
-	foreach ( $attributes as $tag => $value ) {
-		$attribute_str .= " {$tag}=\"{$value}\"";
-	}
-
-	return trim( $attribute_str );
-}
-
 
 /**
  * Check if the upgrade routine has been run for a specific action
@@ -1256,9 +1139,16 @@ function give_get_attribute_str( $attributes ) {
  * @return bool                   If the action has been added to the completed actions array
  */
 function give_has_upgrade_completed( $upgrade_action = '' ) {
-
+	// Bailout.
 	if ( empty( $upgrade_action ) ) {
 		return false;
+	}
+
+	// Fresh install?
+	// If fresh install then all upgrades will be consider as completed.
+	$is_fresh_install = ! Give_Cache_Setting::get_option( 'give_version' );
+	if ( $is_fresh_install ) {
+		return true;
 	}
 
 	$completed_upgrades = give_get_completed_upgrades();
@@ -1311,7 +1201,7 @@ function give_set_upgrade_complete( $upgrade_action = '' ) {
 	 */
 	do_action( 'give_set_upgrade_completed', $upgrade_action, $completed_upgrades );
 
-	return update_option( 'give_completed_upgrades', $completed_upgrades );
+	return update_option( 'give_completed_upgrades', $completed_upgrades, false );
 }
 
 /**
@@ -1321,7 +1211,7 @@ function give_set_upgrade_complete( $upgrade_action = '' ) {
  * @return array The array of completed upgrades
  */
 function give_get_completed_upgrades() {
-	return (array) get_option( 'give_completed_upgrades' );
+	return (array) Give_Cache_Setting::get_option( 'give_completed_upgrades' );
 }
 
 /**
@@ -1353,8 +1243,8 @@ function __give_v20_bc_table_details( $type ) {
 			break;
 
 		case 'payment':
-			$table['name']         = $wpdb->paymentmeta;
-			$table['column']['id'] = 'payment_id';
+			$table['name']         = $wpdb->donationmeta;
+			$table['column']['id'] = Give()->payment_meta->get_meta_type() . '_id';
 	}
 
 	// Backward compatibility.
@@ -1362,7 +1252,6 @@ function __give_v20_bc_table_details( $type ) {
 		$table['name']         = $wpdb->postmeta;
 		$table['column']['id'] = 'post_id';
 	}
-
 
 	return $table;
 }
@@ -1372,8 +1261,7 @@ function __give_v20_bc_table_details( $type ) {
  *
  * @since 1.8.13
  *
- * @param \WP_Query
- *
+ * @param WP_Query $query
  */
 function give_remove_pages_from_search( $query ) {
 
@@ -1381,12 +1269,1187 @@ function give_remove_pages_from_search( $query ) {
 
 		$transaction_failed = give_get_option( 'failure_page', 0 );
 		$success_page       = give_get_option( 'success_page', 0 );
-		$args = apply_filters( 'give_remove_pages_from_search', array( $transaction_failed, $success_page ), $query );
 
+		$args = apply_filters(
+			'give_remove_pages_from_search', array(
+				$transaction_failed,
+				$success_page,
+			), $query
+		);
 		$query->set( 'post__not_in', $args );
 	}
-
-
 }
 
 add_action( 'pre_get_posts', 'give_remove_pages_from_search', 10, 1 );
+
+/**
+ * Inserts a new key/value before a key in the array.
+ *
+ * @since 1.8.13
+ *
+ * @param string       $key       The key to insert before.
+ * @param array        $array     An array to insert in to.
+ * @param string       $new_key   The key to insert.
+ * @param array|string $new_value An value to insert.
+ *
+ * @return array The new array if the key exists, the passed array otherwise.
+ *
+ * @see   array_insert_before()
+ */
+function give_array_insert_before( $key, array &$array, $new_key, $new_value ) {
+	if ( array_key_exists( $key, $array ) ) {
+		$new = array();
+		foreach ( $array as $k => $value ) {
+			if ( $k === $key ) {
+				$new[ $new_key ] = $new_value;
+			}
+			$new[ $k ] = $value;
+		}
+
+		return $new;
+	}
+
+	return $array;
+}
+
+/**
+ * Inserts a new key/value after a key in the array.
+ *
+ * @since 1.8.13
+ *
+ * @param string       $key       The key to insert after.
+ * @param array        $array     An array to insert in to.
+ * @param string       $new_key   The key to insert.
+ * @param array|string $new_value An value to insert.
+ *
+ * @return array The new array if the key exists, the passed array otherwise.
+ *
+ * @see   array_insert_before()
+ */
+function give_array_insert_after( $key, array &$array, $new_key, $new_value ) {
+	if ( array_key_exists( $key, $array ) ) {
+		$new = array();
+		foreach ( $array as $k => $value ) {
+			$new[ $k ] = $value;
+			if ( $k === $key ) {
+				$new[ $new_key ] = $new_value;
+			}
+		}
+
+		return $new;
+	}
+
+	return $array;
+}
+
+/**
+ * Pluck a certain field out of each object in a list.
+ *
+ * This has the same functionality and prototype of
+ * array_column() (PHP 5.5) but also supports objects.
+ *
+ * @since 1.8.13
+ *
+ * @param array      $list      List of objects or arrays
+ * @param int|string $field     Field from the object to place instead of the entire object
+ * @param int|string $index_key Optional. Field from the object to use as keys for the new array.
+ *                              Default null.
+ *
+ * @return array Array of found values. If `$index_key` is set, an array of found values with keys
+ *               corresponding to `$index_key`. If `$index_key` is null, array keys from the original
+ *               `$list` will be preserved in the results.
+ */
+function give_list_pluck( $list, $field, $index_key = null ) {
+
+	if ( ! $index_key ) {
+		/**
+		 * This is simple. Could at some point wrap array_column()
+		 * if we knew we had an array of arrays.
+		 */
+		foreach ( $list as $key => $value ) {
+			if ( is_object( $value ) ) {
+				if ( isset( $value->$field ) ) {
+					$list[ $key ] = $value->$field;
+				}
+			} else {
+				if ( isset( $value[ $field ] ) ) {
+					$list[ $key ] = $value[ $field ];
+				}
+			}
+		}
+
+		return $list;
+	}
+
+	/*
+	 * When index_key is not set for a particular item, push the value
+	 * to the end of the stack. This is how array_column() behaves.
+	 */
+	$newlist = array();
+	foreach ( $list as $value ) {
+		if ( is_object( $value ) ) {
+			if ( isset( $value->$index_key ) ) {
+				$newlist[ $value->$index_key ] = $value->$field;
+			} else {
+				$newlist[] = $value->$field;
+			}
+		} else {
+			if ( isset( $value[ $index_key ] ) ) {
+				$newlist[ $value[ $index_key ] ] = $value[ $field ];
+			} else {
+				$newlist[] = $value[ $field ];
+			}
+		}
+	}
+
+	$list = $newlist;
+
+	return $list;
+}
+
+/**
+ * Add meta data field to a donor.
+ *
+ * @since 1.8.13
+ *
+ * @param int    $donor_id   Donor ID.
+ * @param string $meta_key   Metadata name.
+ * @param mixed  $meta_value Metadata value. Must be serializable if non-scalar.
+ * @param bool   $unique     Optional. Whether the same key should not be added.
+ *                           Default false.
+ *
+ * @return int|false Meta ID on success, false on failure.
+ */
+function add_donor_meta( $donor_id, $meta_key, $meta_value, $unique = false ) {
+	return add_metadata( 'give_customer', $donor_id, $meta_key, $meta_value, $unique );
+}
+
+/**
+ * Remove metadata matching criteria from a Donor meta.
+ *
+ * You can match based on the key, or key and value. Removing based on key and
+ * value, will keep from removing duplicate metadata with the same key. It also
+ * allows removing all metadata matching key, if needed.
+ *
+ * @since 1.8.13
+ *
+ * @param int    $donor_id   Donor ID
+ * @param string $meta_key   Metadata name.
+ * @param mixed  $meta_value Optional. Metadata value.
+ *
+ * @return bool True on success, false on failure.
+ */
+function delete_donor_meta( $donor_id, $meta_key, $meta_value = '' ) {
+	return delete_metadata( 'give_customer', $donor_id, $meta_key, $meta_value );
+}
+
+/**
+ * Retrieve donor meta field for a donor meta table.
+ *
+ * @since 1.8.13
+ *
+ * @param int    $donor_id Donor ID.
+ * @param string $key      Optional. The meta key to retrieve. By default, returns data for all keys.
+ * @param bool   $single   Whether to return a single value.
+ *
+ * @return mixed Will be an array if $single is false. Will be value of meta data field if $single
+ *  is true.
+ */
+function get_donor_meta( $donor_id, $key = '', $single = false ) {
+	return get_metadata( 'give_customer', $donor_id, $key, $single );
+}
+
+/**
+ * Update customer meta field based on Donor ID.
+ *
+ * If the meta field for the donor does not exist, it will be added.
+ *
+ * @since 1.8.13
+ *
+ * @param int    $donor_id   Donor ID.
+ * @param string $meta_key   Metadata key.
+ * @param mixed  $meta_value Metadata value.
+ * @param mixed  $prev_value Optional. Previous value to check before removing.
+ *
+ * @return int|bool Meta ID if the key didn't exist, true on successful update, false on failure.
+ */
+function update_donor_meta( $donor_id, $meta_key, $meta_value, $prev_value = '' ) {
+	return update_metadata( 'give_customer', $donor_id, $meta_key, $meta_value, $prev_value );
+}
+
+
+/**
+ * Give recalculate income and donation of the donation from ID
+ *
+ * @since 1.8.13
+ *
+ * @param int $form_id Form id of which recalculation needs to be done.
+ *
+ * @return void
+ */
+function give_recount_form_income_donation( $form_id = 0 ) {
+	// Check if form id is not empty.
+	if ( ! empty( $form_id ) ) {
+		/**
+		 * Filter to modify payment status.
+		 *
+		 * @since 1.8.13
+		 */
+		$accepted_statuses = apply_filters( 'give_recount_accepted_statuses', array( 'publish' ) );
+
+		/**
+		 * Filter to modify args of payment query before recalculating the form total
+		 *
+		 * @since 1.8.13
+		 */
+		$args = apply_filters(
+			'give_recount_form_stats_args', array(
+				'give_forms' => $form_id,
+				'status'     => $accepted_statuses,
+				'number'     => - 1,
+				'fields'     => 'ids',
+			)
+		);
+
+		$totals = array(
+			'sales'    => 0,
+			'earnings' => 0,
+		);
+
+		$payments = new Give_Payments_Query( $args );
+		$payments = $payments->get_payments();
+
+		if ( $payments ) {
+			foreach ( $payments as $payment ) {
+				// Ensure acceptable status only.
+				if ( ! in_array( $payment->post_status, $accepted_statuses ) ) {
+					continue;
+				}
+
+				// Ensure only payments for this form are counted.
+				if ( $payment->form_id != $form_id ) {
+					continue;
+				}
+
+				$totals['sales'] ++;
+				$totals['earnings'] += $payment->total;
+
+			}
+		}
+		give_update_meta( $form_id, '_give_form_sales', $totals['sales'] );
+		give_update_meta( $form_id, '_give_form_earnings', give_sanitize_amount_for_db( $totals['earnings'] ) );
+	}// End if().
+}
+
+
+/**
+ * Get attribute string
+ *
+ * @since 1.8.17
+ *
+ * @param array $attributes
+ * @param array $default_attributes
+ *
+ * @return string
+ */
+function give_get_attribute_str( $attributes, $default_attributes = array() ) {
+	$attribute_str = '';
+
+	if ( isset( $attributes['attributes'] ) ) {
+		$attributes = $attributes['attributes'];
+	}
+
+	if ( ! empty( $default_attributes ) ) {
+		$attributes = wp_parse_args( $attributes, $default_attributes );
+	}
+
+	if ( empty( $attributes ) ) {
+		return $attribute_str;
+	}
+
+	foreach ( $attributes as $tag => $value ) {
+		if ( 'value' == $tag ) {
+			$value = esc_attr( $value );
+		}
+
+		$attribute_str .= " {$tag}=\"{$value}\"";
+	}
+
+	return trim( $attribute_str );
+}
+
+/**
+ * Get the upload dir path
+ *
+ * @since 1.8.17
+ *
+ * @return string $wp_upload_dir;
+ */
+function give_get_wp_upload_dir() {
+	$wp_upload_dir = wp_upload_dir();
+
+	return ( ! empty( $wp_upload_dir['path'] ) ? $wp_upload_dir['path'] : false );
+}
+
+/**
+ * Get the data from uploaded JSON file
+ *
+ * @since 1.8.17
+ *
+ * @param string $file_name filename of the json file that is being uploaded
+ *
+ * @return string|bool $file_contents File content
+ */
+function give_get_core_settings_json( $file_name ) {
+	$upload_dir = give_get_wp_upload_dir();
+	$file_path  = $upload_dir . '/' . $file_name;
+
+	if ( is_wp_error( $file_path ) || empty( $file_path ) ) {
+		Give_Admin_Settings::add_error( 'give-import-csv', __( 'Please upload or provide a valid JSON file.', 'give' ) );
+	}
+
+	$file_contents = file_get_contents( $file_path );
+
+	return $file_contents;
+}
+
+/**
+ * Get number of donation to show when user is not login.
+ *
+ * @since 1.8.17
+ *
+ * @return int $country The two letter country code for the site's base country
+ */
+function give_get_limit_display_donations() {
+	return give_get_option( 'limit_display_donations', 1 );
+}
+
+/**
+ * Add footer to the table when donor is view the donation history page with out login
+ *
+ * @since 1.8.17
+ */
+function give_donation_history_table_end() {
+	$email = Give()->session->get( 'give_email' );
+	?>
+	<tfoot>
+	<tr>
+		<td colspan="9999">
+			<div class="give-security-wrap">
+				<div class="give-security-column give-security-description-wrap">
+					<?php
+					echo sprintf( __( 'For security reasons, please confirm your email address (%s) to view your complete donation history.', 'give' ), $email );
+					?>
+				</div>
+				<div class="give-security-column give-security-button-wrap">
+					<a href="#" data-email="<?php echo $email; ?>" id="give-confirm-email-btn"
+					   class="give-confirm-email-btn give-btn">
+						<?php _e( 'Confirm Email', 'give' ); ?>
+					</a>
+					<span><?php _e( 'Email Sent!', 'give' ); ?></span>
+				</div>
+			</div>
+		</td>
+	</tr>
+	</tfoot>
+	<?php
+}
+
+
+/**
+ * Wrapper for _doing_it_wrong.
+ *
+ * @since  1.8.18
+ *
+ * @param  string $function
+ * @param  string $message
+ * @param  string $version
+ *
+ * @return void
+ */
+function give_doing_it_wrong( $function, $message, $version ) {
+	$message .= "\nBacktrace:" . wp_debug_backtrace_summary();
+
+	_doing_it_wrong( $function, $message, $version );
+}
+
+
+/**
+ * Remove limit from running php script complete.
+ *
+ * @since 1.8.18
+ */
+function give_ignore_user_abort() {
+	ignore_user_abort( true );
+
+	if ( ! give_is_func_disabled( 'set_time_limit' ) && ! ini_get( 'safe_mode' ) ) {
+		set_time_limit( 0 );
+	}
+}
+
+/**
+ * Get post type count.
+ *
+ * @since 2.0.2
+ *
+ * @param string $post_type
+ * @param array  $args
+ *
+ * @return int
+ */
+function give_get_total_post_type_count( $post_type = '', $args = array() ) {
+	global $wpdb;
+	$where = '';
+
+	if ( ! $post_type ) {
+		return 0;
+	}
+
+	// Bulit where query
+	if ( ! empty( $post_type ) ) {
+		$where .= ' WHERE';
+
+		if ( is_array( $post_type ) ) {
+			$where .= " post_type='" . implode( "' OR post_type='", $post_type ) . "'";
+		} else {
+			$where .= " post_type='{$post_type}'";
+		}
+	}
+
+	$result = $wpdb->get_var( "SELECT count(ID) FROM {$wpdb->posts}{$where}" );
+
+	return absint( $result );
+}
+
+/**
+ * Define a constant if it is not already defined.
+ *
+ * @since  2.0.5
+ *
+ * @param string $name  Constant name.
+ * @param string $value Value.
+ *
+ * @credit WooCommerce
+ */
+function give_maybe_define_constant( $name, $value ) {
+	if ( ! defined( $name ) ) {
+		define( $name, $value );
+	}
+}
+
+/**
+ * Decode time short tag in string
+ *
+ * @since 2.1.0
+ *
+ * @param string $string
+ * @param int    $timestamp
+ *
+ * @return string
+ */
+function give_time_do_tags( $string, $timestamp = 0 ) {
+	$current_time = ! empty( $timestamp ) ? $timestamp : current_time( 'timestamp' );
+
+	$formatted_string = str_replace(
+		array(
+			'{D}',
+			'{DD}',
+			'{M}',
+			'{MM}',
+			'{YY}',
+			'{YYYY}',
+			'{H}',
+			'{HH}',
+			'{N}',
+			'{S}',
+		), array(
+			date( 'j', $current_time ),
+			date( 'd', $current_time ),
+			date( 'n', $current_time ),
+			date( 'm', $current_time ),
+			date( 'Y', $current_time ),
+			date( 'Y', $current_time ),
+			date( 'G', $current_time ),
+			date( 'H', $current_time ),
+			date( 's', $current_time ),
+		), $string
+	);
+
+	/**
+	 * Filter the parsed string.
+	 *
+	 * @since 2.1.0
+	 */
+	return apply_filters( 'give_time_do_tags', $formatted_string, $string, $timestamp );
+}
+
+
+/**
+ * Check if Company field enabled or not for form or globally.
+ *
+ * @since 2.1
+ *
+ * @param $form_id
+ *
+ * @return bool
+ */
+function give_is_company_field_enabled( $form_id ) {
+	$form_setting_val   = give_get_meta( $form_id, '_give_company_field', true );
+	$global_setting_val = give_get_option( 'company_field' );
+
+	if ( ! empty( $form_setting_val ) ) {
+		if ( give_is_setting_enabled( $form_setting_val, array( 'required', 'optional' ) ) ) {
+			return true;
+		} elseif ( 'global' === $form_setting_val && give_is_setting_enabled(
+			$global_setting_val, array(
+				'required',
+				'optional',
+			)
+		) ) {
+			return true;
+		} else {
+			return false;
+		}
+	} elseif ( give_is_setting_enabled( $global_setting_val, array( 'required', 'optional' ) ) ) {
+		return true;
+
+	} else {
+		return false;
+	}
+}
+
+/**
+ * Check if anonymous donation field enabled or not for form or globally.
+ *
+ * @since 2.1
+ *
+ * @param $form_id
+ *
+ * @return bool
+ */
+function give_is_anonymous_donation_field_enabled( $form_id ) {
+	$form_setting_val   = give_get_meta( $form_id, '_give_anonymous_donation', true, 'global' );
+	$global_setting_val = give_get_option( 'anonymous_donation', 'disabled' );
+
+	if ( ! empty( $form_setting_val ) ) {
+		if ( give_is_setting_enabled( $form_setting_val ) ) {
+			return true;
+		} elseif ( 'global' === $form_setting_val && give_is_setting_enabled( $global_setting_val ) ) {
+			return true;
+		} else {
+			return false;
+		}
+	} elseif ( give_is_setting_enabled( $global_setting_val ) ) {
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Check if donor comment field enabled or not for form or globally.
+ *
+ * @since 2.1
+ *
+ * @param $form_id
+ *
+ * @return bool
+ */
+function give_is_donor_comment_field_enabled( $form_id ) {
+	$form_setting_val   = give_get_meta( $form_id, '_give_donor_comment', true, 'global' );
+	$global_setting_val = give_get_option( 'donor_comment', 'disabled' );
+
+	if ( ! empty( $form_setting_val ) ) {
+		if ( give_is_setting_enabled( $form_setting_val ) ) {
+			return true;
+		} elseif ( 'global' === $form_setting_val && give_is_setting_enabled( $global_setting_val ) ) {
+			return true;
+		} else {
+			return false;
+		}
+	} elseif ( give_is_setting_enabled( $global_setting_val ) ) {
+		return true;
+	}
+
+	return false;
+
+}
+
+/**
+ * Get add-on user meta value information
+ * Note: only for internal use.
+ *
+ * @since 2.1.0
+ *
+ * @param string $license_id
+ *
+ * @return array
+ */
+function __give_get_active_license_info( $license_id ) {
+	global $wpdb;
+	$option_name = "{$license_id}_license_active";
+	$data        = array();
+
+	if ( ! isset( $GLOBALS['give_active_licenses_info'] ) ) {
+		$GLOBALS['give_active_licenses_info'] = array();
+
+		$licenses_info = $wpdb->get_results(
+			"
+			SELECT option_name, option_value
+			FROM {$wpdb->options}
+			WHERE option_name LIKE '%_license_active%'
+			AND option_name LIKE '%give_%'
+			",
+			ARRAY_A
+		);
+
+		if ( ! empty( $licenses_info ) ) {
+			$GLOBALS['give_active_licenses_info'] = array_combine(
+				wp_list_pluck( $licenses_info, 'option_name' ),
+				wp_list_pluck( $licenses_info, 'option_value' )
+			);
+		}
+	}
+
+	if ( in_array( $option_name, array_keys( $GLOBALS['give_active_licenses_info'] ) ) ) {
+		$data = maybe_unserialize( $GLOBALS['give_active_licenses_info'][ $option_name ] );
+	}
+
+	return $data;
+}
+
+/**
+ * Get add-on user meta value information
+ * Note: only for internal use.
+ *
+ * @since 2.1.0
+ *
+ * @param string $banner_addon_name Give add-on name.
+ *
+ * @return array
+ */
+function __give_get_active_by_user_meta( $banner_addon_name ) {
+	global $wpdb;
+
+	// Get the option key.
+	$option_name = Give_Addon_Activation_Banner::get_banner_user_meta_key( $banner_addon_name );
+	$data        = array();
+
+	if (
+		! isset( $GLOBALS['give_addon_activated_by_user'][ $banner_addon_name ] )
+		|| empty( $GLOBALS['give_addon_activated_by_user'][ $banner_addon_name ] )
+	) {
+		$GLOBALS['give_addon_activated_by_user'][ $banner_addon_name ] = array();
+
+		// Get the meta of activation banner by user.
+		$activation_banners = $wpdb->get_results(
+			"
+					SELECT option_name, option_value
+					FROM {$wpdb->options}
+					WHERE option_name LIKE '%_active_by_user%'
+					AND option_name LIKE '%give_addon%'
+					",
+			ARRAY_A
+		);
+
+		if ( ! empty( $activation_banners ) ) {
+			$GLOBALS['give_addon_activated_by_user'] = array_combine(
+				wp_list_pluck( $activation_banners, 'option_name' ),
+				wp_list_pluck( $activation_banners, 'option_value' )
+			);
+		}
+	}
+
+	if ( in_array( $option_name, array_keys( $GLOBALS['give_addon_activated_by_user'] ) ) ) {
+		$data = maybe_unserialize( $GLOBALS['give_addon_activated_by_user'][ $option_name ] );
+	}
+
+	return $data;
+}
+
+/**
+ * Get time interval for which nonce is valid
+ *
+ * @since 2.1.3
+ *
+ * @return int
+ */
+function give_get_nonce_life() {
+	/**
+	 * Filters the lifespan of nonces in seconds.
+	 *
+	 * @see wp-inlucdes/pluggable.php:wp_nonce_tick
+	 */
+	return (int) apply_filters( 'nonce_life', DAY_IN_SECONDS );
+}
+
+/**
+ * Get nonce field without id
+ *
+ * @since 2.1.3
+ *
+ * @param  string $action
+ * @param  string $name
+ * @param bool   $referer
+ *
+ * @return string
+ */
+function give_get_nonce_field( $action, $name, $referer = false ) {
+	return str_replace(
+		"id=\"{$name}\"",
+		'',
+		wp_nonce_field( $action, $name, $referer, false )
+	);
+}
+
+/**
+ * Display/Return a formatted goal for a donation form
+ *
+ * @param int|Give_Donate_Form $form Form ID or Form Object.
+ *
+ * @since 2.1
+ *
+ * @return array
+ */
+function give_goal_progress_stats( $form ) {
+
+	if ( ! $form instanceof Give_Donate_Form ) {
+		$form = new Give_Donate_Form( $form );
+	}
+
+	$donors = '';
+
+	$goal_format = give_get_form_goal_format( $form->ID );
+
+	/**
+	 * Filter the form.
+	 *
+	 * @since 1.8.8
+	 */
+	$total_goal = apply_filters( 'give_goal_amount_target_output', round( give_maybe_sanitize_amount( $form->goal ), 2 ), $form->ID, $form );
+
+	switch ( $goal_format ) {
+		case 'donation':
+			/**
+			 * Filter the form donations.
+			 *
+			 * @since 2.1
+			 */
+			$actual = $donations = apply_filters( 'give_goal_donations_raised_output', $form->sales, $form->ID, $form );
+			break;
+		case 'donors':
+			/**
+			 * Filter to modify total number if donor for the donation form.
+			 *
+			 * @since 2.1.3
+			 *
+			 * @param int              $donors  Total number of donors that donated to the form.
+			 * @param int              $form_id Donation Form ID.
+			 * @param Give_Donate_Form $form    instances of Give_Donate_Form.
+			 *
+			 * @return int $donors Total number of donors that donated to the form.
+			 */
+			$actual = $donors = apply_filters( 'give_goal_donors_target_output', give_get_form_donor_count( $form->ID ), $form->ID, $form );
+			break;
+		default:
+			/**
+			 * Filter the form income.
+			 *
+			 * @since 1.8.8
+			 */
+			$actual = $income = apply_filters( 'give_goal_amount_raised_output', $form->earnings, $form->ID, $form );
+			break;
+	}
+
+	$progress = $total_goal ? round( ( $actual / $total_goal ) * 100, 2 ) : 0;
+
+	$stats_array = array(
+		'raw_actual' => $actual,
+		'raw_goal'   => $total_goal,
+	);
+
+	/**
+	 * Filter the goal progress output
+	 *
+	 * @since 1.8.8
+	 */
+	$progress = apply_filters( 'give_goal_amount_funded_percentage_output', $progress, $form->ID, $form );
+
+	// Define Actual Goal based on the goal format.
+	if ( 'percentage' === $goal_format ) {
+		$actual = "{$actual}%";
+	} elseif ( 'amount' === $goal_format ) {
+		$actual = give_currency_filter( give_format_amount( $actual ) );
+	}
+
+	// Define Total Goal based on the goal format.
+	if ( 'percentage' === $goal_format ) {
+		$total_goal = '';
+	} elseif ( 'amount' === $goal_format ) {
+		$total_goal = give_currency_filter( give_format_amount( $total_goal ) );
+	}
+
+	$stats_array = array_merge(
+		array(
+			'progress' => $progress,
+			'actual'   => $actual,
+			'goal'     => $total_goal,
+			'format'   => $goal_format,
+		),
+		$stats_array
+	);
+
+	/**
+	 * Filter the goal stats
+	 *
+	 * @since 2.1
+	 */
+	return apply_filters( 'give_goal_progress_stats', $stats_array );
+}
+
+/**
+ * Get the admin messages key to show the notices.
+ *
+ * @since 2.1.4
+ *
+ * @return array $message admin message key.
+ */
+function give_get_admin_messages_key() {
+	$messages = empty( $_GET['give-messages'] ) ? array() : give_clean( $_GET['give-messages'] );
+
+	// backward compatibility.
+	if ( ! empty( $_GET['give-message'] ) ) {
+		$messages[] = give_clean( $_GET['give-message'] );
+	}
+
+	/**
+	 * Filter to modify the admin messages key.
+	 *
+	 * @since 2.1.4
+	 *
+	 * @param array $message admin message key.
+	 *
+	 * @return array $message admin message key.
+	 */
+	return (array) apply_filters( 'give_get_admin_messages_key', $messages );
+}
+
+/**
+ * Get User Agent String.
+ *
+ * @since 2.1.4
+ *
+ * @return array|string
+ */
+function give_get_user_agent() {
+
+	// Get User Agent.
+	$user_agent = ! empty( $_SERVER['HTTP_USER_AGENT'] ) ? give_clean( $_SERVER['HTTP_USER_AGENT'] ) : ''; // WPCS: input var ok.
+
+	return $user_agent;
+}
+
+/**
+ * Set a cookie - wrapper for setcookie using WP constants.
+ *
+ * @since 2.2.0
+ *
+ * @param  string  $name   Name of the cookie being set.
+ * @param  string  $value  Value of the cookie.
+ * @param  integer $expire Expiry of the cookie.
+ * @param  bool    $secure Whether the cookie should be served only over https.
+ */
+function give_setcookie( $name, $value, $expire = 0, $secure = false ) {
+	if ( ! headers_sent() ) {
+		setcookie(
+			$name, $value, $expire, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, $secure,
+			apply_filters( 'give_cookie_httponly', false, $name, $value, $expire, $secure )
+		);
+	}
+}
+
+/**
+ * Get formatted billing address.
+ *
+ * @since 2.2.0
+ *
+ * @param array $address
+ *
+ * @return string Formatted address.
+ */
+function give_get_formatted_address( $address = array() ) {
+	$formatted_address = '';
+
+	/**
+	 * Address format.
+	 *
+	 * @since 2.2.0
+	 */
+	$address_format = apply_filters( 'give_address_format_template', "{street_address}\n{city}, {state} {postal_code}\n{country}" );
+	preg_match_all( '/{([A-z0-9\-\_\ ]+)}/s', $address_format, $matches );
+
+	if ( ! empty( $matches ) && ! empty( $address ) ) {
+		$address_values = array();
+
+		foreach ( $matches[1] as $address_tag ) {
+			$address_values[ $address_tag ] = '';
+
+			if ( isset( $address[ $address_tag ] ) ) {
+				$address_values[ $address_tag ] = $address[ $address_tag ];
+			}
+		}
+
+		$formatted_address = str_ireplace( $matches[0], $address_values, $address_format );
+	}
+
+	/**
+	 * Give get formatted address.
+	 *
+	 * @since 2.2.0
+	 *
+	 * @param string $formatted_address Formatted address.
+	 * @param string $address_format    Format of the address.
+	 */
+	$formatted_address = apply_filters( 'give_get_formatted_address', $formatted_address, $address_format, $address );
+
+	return $formatted_address;
+}
+
+/**
+ * Get safe url for assets
+ * Note: this function will return url without http protocol
+ *
+ * @since 2.2.0
+ *
+ * @param string $url URL
+ *
+ * @return string
+ */
+function give_get_safe_asset_url( $url ) {
+
+	// Bailout, if empty URL passed.
+	if ( empty( $url ) ) {
+		return $url;
+	}
+
+	$schema        = parse_url( $url, PHP_URL_SCHEME );
+	$schema_length = strlen( $schema ) + 1;
+	$url           = substr( $url, $schema_length );
+
+	/**
+	 * Fire the filter
+	 *
+	 * @since 2.2.0
+	 */
+	return apply_filters( 'give_get_safe_asset_url', $url );
+}
+
+/**
+ * Give get formatted date.
+ * Note: This function does not work well with localize translated  date strings
+ *
+ * @since 2.3.0
+ *
+ * @param string $date           Date.
+ * @param string $format         Date Format.
+ * @param string $current_format Current date Format.
+ *
+ * @return string
+ */
+function give_get_formatted_date( $date, $format = 'Y-m-d', $current_format = '' ) {
+	$current_format = empty( $current_format ) ? give_date_format() : $current_format;
+	$date_obj       = DateTime::createFromFormat( $current_format, $date );
+
+	$formatted_date = $date_obj instanceof DateTime ? $date_obj->format( $format ) : '';
+
+	/**
+	 * Give get formatted date.
+	 *
+	 * @since 2.3.0
+	 *
+	 * @param string $formatted_date Formatted date.
+	 * @param array
+	 */
+	return apply_filters( 'give_get_formatted_date', $formatted_date, array( $date, $format, $current_format ) );
+}
+
+/**
+ * This function will be used to fetch the donation receipt link.
+ *
+ * @param int $donation_id Donation ID.
+ *
+ * @since 2.3.1
+ *
+ * @return string
+ */
+function give_get_receipt_link( $donation_id ) {
+
+	return sprintf(
+		'<a href="%1$s">%2$s</a>',
+		esc_url( give_get_receipt_url( $donation_id ) ),
+		esc_html__( 'View the receipt in your browser &raquo;', 'give' )
+	);
+
+}
+
+/**
+ * Get receipt_url
+ *
+ * @since 2.0
+ *
+ * @param int $donation_id Donation ID.
+ *
+ * @return string
+ */
+function give_get_receipt_url( $donation_id ) {
+
+	$receipt_url = esc_url(
+		add_query_arg(
+			array(
+				'donation_id' => $donation_id,
+			), give_get_history_page_uri()
+		)
+	);
+
+	return $receipt_url;
+}
+
+/**
+ * Get "View in browser" Receipt Link for email.
+ *
+ * @param int $donation_id Donation ID.
+ *
+ * @since 2.4.1
+ *
+ * @return string
+ */
+function give_get_view_receipt_link( $donation_id ) {
+
+	return sprintf(
+		'<a href="%1$s">%2$s</a>',
+		esc_url( give_get_view_receipt_url( $donation_id ) ),
+		esc_html__( 'View the receipt in your browser &raquo;', 'give' )
+	);
+
+}
+
+/**
+ * Get "View in browser" Receipt URL for email.
+ *
+ * @since 2.4.1
+ *
+ * @param int $donation_id Donation ID.
+ *
+ * @return string
+ */
+function give_get_view_receipt_url( $donation_id ) {
+
+	$receipt_url = esc_url(
+		add_query_arg(
+			array(
+				'action'     => 'view_in_browser',
+				'_give_hash' => give_get_payment_key( $donation_id ),
+			), give_get_history_page_uri()
+		)
+	);
+
+	return $receipt_url;
+}
+
+/**
+ * This function is used to display donation receipt content based on the parameters.
+ *
+ * @param $args
+ *
+ * @since 2.4.1
+ *
+ * @return bool|mixed
+ */
+function give_display_donation_receipt( $args ) {
+
+	global $give_receipt_args;
+
+	$give_receipt_args = $args;
+
+	ob_start();
+
+	$get_data     = give_clean( filter_input_array( INPUT_GET ) );
+	$donation_id  = ! empty( $get_data['donation_id'] ) ? $get_data['donation_id'] : false;
+	$receipt_type = ! empty( $get_data['receipt_type'] ) ? $get_data['receipt_type'] : false;
+
+	$give_receipt_args['id'] = $donation_id;
+
+	if ( 'view_in_browser' !== $receipt_type ) {
+
+		$email_access    = give_get_option( 'email_access' );
+		$is_email_access = give_is_setting_enabled( $email_access ) && ! Give()->email_access->token_exists;
+
+		// No donation id found & Email Access is Turned on.
+		if ( ! $donation_id ) {
+
+			if ( $is_email_access ) {
+				give_get_template_part( 'email-login-form' );
+			} else {
+				echo Give()->notices->print_frontend_notice( $args['error'], false, 'error' );
+			}
+
+			return ob_get_clean();
+		}
+
+		// Donation id provided, but user is logged out. Offer them the ability to login and view the receipt.
+		if ( ! ( $user_can_view = give_can_view_receipt( $donation_id ) ) ) {
+
+			if ( true === Give()->session->get( 'donor_donation_mismatch' ) ) {
+
+				/**
+				 * This filter will be used to modify the donor mismatch text for front end error notice.
+				 *
+				 * @since 2.3.1
+				 */
+				$donor_mismatch_text = apply_filters( 'give_receipt_donor_mismatch_notice_text', __( 'You are trying to access invalid donation receipt. Please try again.', 'give' ) );
+
+				echo Give()->notices->print_frontend_notice(
+					$donor_mismatch_text,
+					false,
+					'error'
+				);
+
+			} elseif ( $is_email_access ) {
+
+				give_get_template_part( 'email-login-form' );
+
+			} else {
+
+				global $give_login_redirect;
+
+				$give_login_redirect = give_get_current_page_url();
+
+				Give()->notices->print_frontend_notice(
+					apply_filters(
+						'give_must_be_logged_in_error_message',
+						__( 'You must be logged in to view this donation receipt.', 'give' )
+					)
+				);
+
+				give_get_template_part( 'shortcode', 'login' );
+			}
+
+			return ob_get_clean();
+		}
+
+		/**
+		 * Check if the user has permission to view the receipt.
+		 *
+		 * If user is logged in, user ID is compared to user ID of ID stored in payment meta
+		 * or if user is logged out and donation was made as a guest, the donation session is checked for
+		 * or if user is logged in and the user can view sensitive shop data.
+		 */
+		if ( ! apply_filters( 'give_user_can_view_receipt', $user_can_view, $args ) ) {
+			return Give()->notices->print_frontend_notice( $args['error'], false, 'error' );
+		}
+	}
+
+	give_get_template_part( 'shortcode', 'receipt' );
+
+	return ob_get_clean();
+}

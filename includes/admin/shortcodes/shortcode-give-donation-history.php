@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Admin
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.3.0
  */
@@ -24,6 +24,22 @@ class Give_Shortcode_Donation_History extends Give_Shortcode_Generator {
 		$this->shortcode['label'] = esc_html__( 'Donation History', 'give' );
 
 		parent::__construct( 'donation_history' );
+	}
+
+	/**
+	 * Define the shortcode attribute fields
+	 *
+	 * @since 2.5.0
+	 * @return array
+	 */
+	public function define_fields() {
+		return array(
+			array(
+				'type' => 'docs_link',
+				'text' => esc_html__( 'Learn more about the Donation History Shortcode', 'give' ),
+				'link' => 'http://docs.givewp.com/shortcode-donation-history',
+			),
+		);
 	}
 }
 

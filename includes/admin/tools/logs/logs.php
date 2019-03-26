@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Admin/Reports
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -35,53 +35,49 @@ function give_get_logs_tab() {
 	do_action( "give_logs_view_{$current_section}" );
 }
 
-
 /**
- * Sales Log View
+ * Update Logs
  *
- * @since 1.0
- * @uses  Give_Sales_Log_Table::prepare_items()
- * @uses  Give_Sales_Log_Table::display()
+ * @since 2.0.1
+ *
  * @return void
  */
-function give_logs_view_sales() {
+function give_logs_view_updates() {
+	include( GIVE_PLUGIN_DIR . 'includes/admin/tools/logs/class-update-logs-list-table.php' );
 
-	include GIVE_PLUGIN_DIR . 'includes/admin/tools/logs/class-sales-logs-list-table.php';
-
-	$logs_table = new Give_Sales_Log_Table();
+	$logs_table = new Give_Update_Log_Table();
 	$logs_table->prepare_items();
 	?>
-	<div class="wrap">
+	<div class="give-log-wrap">
 
 		<?php
 		/**
-		 * Fires before displaying Donations logs.
+		 * Fires before displaying Payment Error logs.
 		 *
-		 * @since 1.8.12
+		 * @since 2.0.1
 		 */
-		do_action( 'give_logs_donations_top' );
+		do_action( 'give_logs_update_top' );
 
 		$logs_table->display(); ?>
 		<input type="hidden" name="post_type" value="give_forms"/>
 		<input type="hidden" name="page" value="give-tools"/>
 		<input type="hidden" name="tab" value="logs"/>
-		<input type="hidden" name="section" value="sales"/>
+		<input type="hidden" name="section" value="update"/>
 
 		<?php
 		/**
-		 * Fires after displaying Donations logs.
+		 * Fires after displaying update logs.
 		 *
-		 * @since 1.8.12
+		 * @since 2.0.1
 		 */
-		do_action( 'give_logs_donations_bottom' );
+		do_action( 'give_logs_update_bottom' );
 		?>
 
 	</div>
 	<?php
 }
 
-add_action( 'give_logs_view_sales', 'give_logs_view_sales' );
-
+add_action( 'give_logs_view_updates', 'give_logs_view_updates' );
 
 /**
  * Gateway Error Logs
@@ -97,7 +93,7 @@ function give_logs_view_gateway_errors() {
 	$logs_table = new Give_Gateway_Error_Log_Table();
 	$logs_table->prepare_items();
 	?>
-	<div class="wrap">
+	<div class="give-log-wrap">
 
 		<?php
 		/**
@@ -203,7 +199,9 @@ function give_log_views() {
 }
 
 /**
- * Set Get form method for tools page
+ * Set Get form method for tools page.
+ *
+ * Prevents Tools from displaying a "Settings Saved" notice.
  *
  * @since 1.8.12
  *

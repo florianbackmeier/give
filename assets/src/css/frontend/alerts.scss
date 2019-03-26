@@ -1,0 +1,103 @@
+/*---------------------------------
+Notices, Warnings & Errors
+-----------------------------------*/
+.give_notices {
+	position: relative;
+}
+
+.give_notices .notice-dismiss {
+	position: absolute;
+	top: 50%;
+	right: 0;
+	transform: translate(0, -50%);
+	border: none;
+	margin: 0;
+	padding: 5px;
+	background: 0 0;
+	color: #72777c;
+	cursor: pointer;
+	max-width: 28px !important;
+
+	&:before {
+		background: 0 0;
+		color: #72777c;
+		content: "\f153";
+		display: block;
+		font: 400 16px/20px dashicons;
+		speak: none;
+		height: 20px;
+		text-align: center;
+		width: 20px;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	&:hover {
+		background-color: rgba(0, 0, 0, 0);
+
+		&:before {
+			color: #dc3232;
+		}
+	}
+}
+
+.give {
+	&_error,
+	&_success,
+	&_warning {
+		position: relative;
+		margin: 15px 0;
+		background: #F9F9F9;
+		padding: 1em 1.5em 1em 2em;
+		border-left: 4px solid;
+		box-shadow: 0 1px 1px rgba(0, 0, 0, 0.125);
+		clear: both;
+
+		> p {
+			margin: 0 !important;
+			color: $dark;
+		}
+
+		&:before {
+			@include iconstyle();
+			position: absolute;
+			top: 50%;
+			font-size: 16px;
+			margin-top: -15px;
+			left: -17px;
+			color: #FFF;
+			width: 30px;
+			height: 30px;
+			border-radius: 100%;
+			text-align: center;
+			line-height: 30px;
+			text-shadow: 1px 1px rgba(0, 0, 0, 0.5);
+		}
+	}
+
+	&_error {
+		border-color: $red;
+
+		&:before {
+			content: '\f02d';
+			background-color: $red;
+		}
+	}
+
+	&_success {
+		border-color: $green;
+
+		&:before {
+			background-color: $green;
+			content: '\e601';
+		}
+	}
+
+	&_warning {
+		border-color: $orange;
+
+		&:before {
+			background-color: $orange;
+			content: '\f02d';
+		}
+	}
+}

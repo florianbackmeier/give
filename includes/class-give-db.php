@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Give_DB
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.0
  */
@@ -32,6 +32,16 @@ abstract class Give_DB {
 	 * @var    string
 	 */
 	public $table_name;
+
+	/**
+	 * Set Minimum Index Length
+	 *
+	 * @since  2.0.1
+	 * @access public
+	 *
+	 * @var int
+	 */
+	public $min_index_length = 191;
 
 	/**
 	 * The version of our database table
@@ -62,6 +72,9 @@ abstract class Give_DB {
 	 * @access public
 	 */
 	public function __construct() {
+		if( is_multisite() ) {
+			add_action( 'switch_blog', array( $this, 'handle_switch_blog' ), 10, 2 );
+		}
 	}
 
 	/**
@@ -102,6 +115,11 @@ abstract class Give_DB {
 		/* @var WPDB $wpdb */
 		global $wpdb;
 
+		// Bailout.
+		if ( empty( $row_id ) ) {
+			return null;
+		}
+
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $this->table_name WHERE $this->primary_key = %s LIMIT 1;", $row_id ) );
 	}
 
@@ -111,17 +129,62 @@ abstract class Give_DB {
 	 * @since  1.0
 	 * @access public
 	 *
-     * @param  int $column Column ID.
-     * @param  int $row_id Row ID.
-     *
-     * @return object
+	 * @param  int $column Column ID.
+	 * @param  int $row_id Row ID.
+	 *
+	 * @return object
 	 */
 	public function get_by( $column, $row_id ) {
-        /* @var WPDB $wpdb */
-        global $wpdb;
+		/* @var WPDB $wpdb */
+		global $wpdb;
+
+		// Bailout.
+		if ( empty( $column ) || empty( $row_id ) ) {
+			return null;
+		}
 
 		$column = esc_sql( $column );
+
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $this->table_name WHERE $column = %s LIMIT 1;", $row_id ) );
+	}
+
+	/**
+	 * Retrieve all rows by a specific column / value
+	 * Note: currently support string comparision
+	 *
+	 * @since  2.2.4
+	 * @access public
+	 *
+	 * @param array $column_args Array contains column key and expected value.
+	 *
+	 * @return array
+	 */
+	public function get_results_by( $column_args ) {
+		/* @var WPDB $wpdb */
+		global $wpdb;
+
+		// Bailout.
+		if ( empty( $column_args ) ) {
+			return null;
+		}
+
+		$column_args = wp_parse_args(
+			$column_args,
+			array(
+				'relation' => 'AND'
+			)
+		);
+
+		$relation = $column_args['relation'];
+		unset($column_args['relation']);
+
+		$where = array();
+		foreach ( $column_args as $column_name => $column_value ) {
+			$where[] = esc_sql( $column_name ) . "='$column_value'";
+		}
+		$where = implode( " {$relation} ", $where );
+
+		return $wpdb->get_results( "SELECT * FROM {$this->table_name} WHERE {$where};" );
 	}
 
 	/**
@@ -129,17 +192,23 @@ abstract class Give_DB {
 	 *
 	 * @since  1.0
 	 * @access public
-     *
-     * @param  int $column Column ID.
-     * @param  int $row_id Row ID.
-     *
+	 *
+	 * @param  int $column Column ID.
+	 * @param  int $row_id Row ID.
+	 *
 	 * @return string      Column value.
 	 */
 	public function get_column( $column, $row_id ) {
-        /* @var WPDB $wpdb */
-        global $wpdb;
+		/* @var WPDB $wpdb */
+		global $wpdb;
+
+		// Bailout.
+		if ( empty( $column ) || empty( $row_id ) ) {
+			return null;
+		}
 
 		$column = esc_sql( $column );
+
 		return $wpdb->get_var( $wpdb->prepare( "SELECT $column FROM $this->table_name WHERE $this->primary_key = %s LIMIT 1;", $row_id ) );
 	}
 
@@ -148,19 +217,25 @@ abstract class Give_DB {
 	 *
 	 * @since  1.0
 	 * @access public
-     *
-     * @param  int    $column       Column ID.
-     * @param  string $column_where Column name.
-     * @param  string $column_value Column value.
-     *
+	 *
+	 * @param  int    $column       Column ID.
+	 * @param  string $column_where Column name.
+	 * @param  string $column_value Column value.
+	 *
 	 * @return string
 	 */
 	public function get_column_by( $column, $column_where, $column_value ) {
-        /* @var WPDB $wpdb */
-        global $wpdb;
+		/* @var WPDB $wpdb */
+		global $wpdb;
+
+		// Bailout.
+		if ( empty( $column ) || empty( $column_where ) || empty( $column_value ) ) {
+			return null;
+		}
 
 		$column_where = esc_sql( $column_where );
 		$column       = esc_sql( $column );
+
 		return $wpdb->get_var( $wpdb->prepare( "SELECT $column FROM $this->table_name WHERE $column_where = %s LIMIT 1;", $column_value ) );
 	}
 
@@ -169,15 +244,15 @@ abstract class Give_DB {
 	 *
 	 * @since  1.0
 	 * @access public
-     *
-     * @param  array  $data
-     * @param  string $type
-     *
+	 *
+	 * @param  array  $data
+	 * @param  string $type
+	 *
 	 * @return int
 	 */
 	public function insert( $data, $type = '' ) {
-        /* @var WPDB $wpdb */
-        global $wpdb;
+		/* @var WPDB $wpdb */
+		global $wpdb;
 
 		// Set default values.
 		$data = wp_parse_args( $data, $this->get_column_defaults() );
@@ -224,16 +299,16 @@ abstract class Give_DB {
 	 *
 	 * @since  1.0
 	 * @access public
-     *
-     * @param  int    $row_id Column ID
-     * @param  array  $data
-     * @param  string $where  Column value
-     *
+	 *
+	 * @param  int    $row_id Column ID
+	 * @param  array  $data
+	 * @param  string $where  Column value
+	 *
 	 * @return bool
 	 */
 	public function update( $row_id, $data = array(), $where = '' ) {
-        /* @var WPDB $wpdb */
-        global $wpdb;
+		/* @var WPDB $wpdb */
+		global $wpdb;
 
 		// Row ID must be positive integer
 		$row_id = absint( $row_id );
@@ -271,14 +346,14 @@ abstract class Give_DB {
 	 *
 	 * @since  1.0
 	 * @access public
-     *
-     * @param  int $row_id Column ID.
-     *
+	 *
+	 * @param  int $row_id Column ID.
+	 *
 	 * @return bool
 	 */
 	public function delete( $row_id = 0 ) {
-        /* @var WPDB $wpdb */
-        global $wpdb;
+		/* @var WPDB $wpdb */
+		global $wpdb;
 
 		// Row ID must be positive integer
 		$row_id = absint( $row_id );
@@ -299,18 +374,45 @@ abstract class Give_DB {
 	 *
 	 * @since  1.3.2
 	 * @access public
-     *
+	 *
 	 * @param  string $table The table name.
-     *
+	 *
 	 * @return bool          If the table name exists.
 	 */
 	public function table_exists( $table ) {
-        /* @var WPDB $wpdb */
+		/* @var WPDB $wpdb */
 		global $wpdb;
 
 		$table = sanitize_text_field( $table );
 
 		return $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE '%s'", $table ) ) === $table;
+	}
+
+	/**
+	 * Checks whether column exists in a table or not.
+	 *
+	 * @param string $column_name Name of the Column in Database Table.
+	 *
+	 * @since 1.8.18
+	 *
+	 * @see https://gist.github.com/datafeedr/54e89e07f87232fb055121bb766743fe
+	 *
+	 * @return bool
+	 */
+	public function does_column_exist( $column_name ) {
+
+		global $wpdb;
+
+		$column = $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s ",
+			DB_NAME, $this->table_name, $column_name
+		) );
+
+		if ( ! empty( $column ) ) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -328,7 +430,7 @@ abstract class Give_DB {
 	/**
 	 * Register tables
 	 *
-	 * @since 1.8.9
+	 * @since  1.8.9
 	 * @access public
 	 */
 	public function register_table() {
@@ -344,7 +446,8 @@ abstract class Give_DB {
 	 * @since  1.8.9
 	 * @access public
 	 */
-	public function create_table(){}
+	public function create_table() {
+	}
 
 
 	/**
@@ -374,6 +477,37 @@ abstract class Give_DB {
 		}
 
 		return absint( $id );
+
+	}
+
+	/**
+	 * Handle switch blog on multi-site
+	 *
+	 * @since  2.0.4
+	 *
+	 * @access public
+	 *
+	 * @param $new_blog_id
+	 * @param $prev_blog_id
+	 */
+	public function handle_switch_blog( $new_blog_id, $prev_blog_id ) {
+		global $wpdb;
+
+		// Bailout.
+		if ( $new_blog_id === $prev_blog_id ) {
+			return;
+		}
+
+
+		$this->table_name = str_replace(
+			1 != $prev_blog_id ? $wpdb->get_blog_prefix( $prev_blog_id ) : $wpdb->base_prefix,
+			1 != $new_blog_id ? $wpdb->get_blog_prefix( $new_blog_id ) : $wpdb->base_prefix,
+			$this->table_name
+		);
+
+		if ( $this instanceof Give_DB_Meta ) {
+			$wpdb->{$this->get_meta_type() . 'meta'} = $this->table_name;
+		}
 
 	}
 }

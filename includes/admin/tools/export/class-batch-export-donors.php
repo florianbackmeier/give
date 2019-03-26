@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Admin/Reports
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.5
  */
@@ -64,6 +64,49 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 	private $query_id = '';
 
 	/**
+	 * Give_Batch_Export constructor.
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param int $_step
+	 */
+	public function __construct( $_step = 1 ) {
+
+		parent::__construct( $_step );
+
+		// Filter to change the filename.
+		add_filter( 'give_export_filename', array( $this, 'give_export_filename' ), 10, 2 );
+	}
+
+	/**
+	 * Function to change the filename
+	 *
+	 * @since 2.1.0
+	 *
+	 * @param string $filename File name.
+	 * @param string $export_type export type.
+	 *
+	 * @return string $filename file name.
+	 */
+	public function give_export_filename( $filename, $export_type ) {
+
+		if ( $this->export_type !== $export_type ) {
+			return $filename;
+		}
+
+		$forms = empty( $_GET['forms'] ) ? 0 : absint( $_GET['forms'] );
+
+		if ( $forms ) {
+			$slug     = get_post_field( 'post_name', get_post( $forms ) );
+			$filename = 'give-export-donors-' . $slug . '-' . date( 'm-d-Y' );
+		} else {
+			$filename = 'give-export-donors-all-forms-' . date( 'm-d-Y' );
+		}
+
+		return $filename;
+	}
+
+	/**
 	 * Set the properties specific to the donors export.
 	 *
 	 * @since 1.5
@@ -87,9 +130,7 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 		}
 
 		$this->price_id = ! empty( $request['give_price_option'] ) && 'all' !== $request['give_price_option'] ? absint( $request['give_price_option'] ) : null;
-
 	}
-
 
 	/**
 	 * Cache donor ids.
@@ -118,14 +159,8 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 	 */
 	public function csv_cols() {
 
-		$columns = isset( $this->data['give_export_option'] ) ? $this->data['give_export_option'] : array();
-
-		// We need columns.
-		if ( empty( $columns ) ) {
-			return false;
-		}
-
-		$cols = $this->get_cols( $columns );
+		$columns = give_export_donors_get_default_columns();
+		$cols    = $this->get_cols( $columns );
 
 		return $cols;
 	}
@@ -144,12 +179,7 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 		foreach ( $columns as $key => $value ) {
 
 			switch ( $key ) {
-				case 'full_name' :
-					$cols['full_name'] = esc_html__( 'Full Name', 'give' );
-					break;
-				case 'email' :
-					$cols['email'] = esc_html__( 'Email Address', 'give' );
-					break;
+
 				case 'address' :
 					$cols['address_line1']   = esc_html__( 'Address', 'give' );
 					$cols['address_line2']   = esc_html__( 'Address 2', 'give' );
@@ -158,20 +188,9 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 					$cols['address_zip']     = esc_html__( 'Zip', 'give' );
 					$cols['address_country'] = esc_html__( 'Country', 'give' );
 					break;
-				case 'userid' :
-					$cols['userid'] = esc_html__( 'User ID', 'give' );
-					break;
-				case 'donation_form' :
-					$cols['donation_form'] = esc_html__( 'Donation Form', 'give' );
-					break;
-				case 'date_first_donated' :
-					$cols['date_first_donated'] = esc_html__( 'First Donation Date', 'give' );
-					break;
-				case 'donations' :
-					$cols['donations'] = esc_html__( 'Number of Donations', 'give' );
-					break;
-				case 'donation_sum' :
-					$cols['donation_sum'] = esc_html__( 'Sum of Donations', 'give' );
+
+				default:
+					$cols[ $key ] = $value;
 					break;
 			}
 		}
@@ -196,9 +215,9 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 
 		if ( ! empty( $this->form ) ) {
 
-			// Export donors for a specific donation form and also within specified timeframe
+			// Export donors for a specific donation form and also within specified timeframe.
 			$args = array(
-				'output'     => 'payments', // Use 'posts' to get standard post objects
+				'output'     => 'payments',
 				'post_type'  => array( 'give_payment' ),
 				'number'     => 30,
 				'paged'      => $this->step,
@@ -207,10 +226,21 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 				'meta_value' => absint( $this->form ),
 			);
 
-			// Check for date option filter
+			// Check for date option filter.
 			if ( ! empty( $this->data['donor_export_start_date'] ) || ! empty( $this->data['donor_export_end_date'] ) ) {
-				$args['start_date'] = ! empty( $this->data['donor_export_start_date'] ) ? date( 'Y-n-d 00:00:00', strtotime( $this->data['donor_export_start_date'] ) ) : date( 'Y-n-d 23:59:59', '1970-1-01 00:00:00' );
-				$args['end_date']   = ! empty( $this->data['donor_export_end_date'] ) ? date( 'Y-n-d 23:59:59', strtotime( $this->data['donor_export_end_date'] ) ) : date( 'Y-n-d 23:59:59', current_time( 'timestamp' ) );
+				// Start date.
+				$start_date = ! empty( $this->data['donor_export_start_date'] ) ? sanitize_text_field( $this->data['donor_export_start_date'] ) : '';
+				if ( ! empty( $start_date ) ) {
+					$start_date         = date( 'Y-m-d', strtotime( $start_date ) );
+					$args['start_date'] = $start_date;
+				}
+
+				// End date.
+				$end_date         = ! empty( $this->data['donor_export_end_date'] )
+					? date( 'Y-m-d', strtotime( sanitize_text_field( $this->data['donor_export_end_date'] ) ))
+					: date( 'Y-m-d', current_time( 'timestamp' ) );
+				$end_date = "{$end_date} 23:59:59";
+				$args['end_date'] = $end_date;
 			}
 
 			// Check for price option.
@@ -257,17 +287,16 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 
 				if ( ! empty( $this->donor_ids ) ) {
 					foreach ( $this->donor_ids as $donor_id ) {
-						$donor                      = Give()->donors->get_donor_by( 'id', $donor_id );
-						$donor->donation_form_title = $this->payment_stats[ $donor_id ]['form_title'];
-						$donor->purchase_count      = $this->payment_stats[ $donor_id ]['donations'];
-						$donor->purchase_value      = $this->payment_stats[ $donor_id ]['donation_sum'];
-						$data[]                     = $this->set_donor_data( $i, $data, $donor );
+						$donor                 = Give()->donors->get_donor_by( 'id', $donor_id );
+						$donor->purchase_count = $this->payment_stats[ $donor_id ]['donations'];
+						$donor->purchase_value = $this->payment_stats[ $donor_id ]['donation_sum'];
+						$data[]                = $this->set_donor_data( $i, $data, $donor );
 					}
 
 					// Cache donor ids only if admin export donor for specific form.
 					$this->cache_donor_ids();
 				}
-			}
+			} // End if().
 		} else {
 
 			// Export all donors.
@@ -278,12 +307,23 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 				'offset' => $offset,
 			);
 
-			// Check for date option filter
+			// Check for date option filter.
 			if ( ! empty( $this->data['donor_export_start_date'] ) || ! empty( $this->data['donor_export_end_date'] ) ) {
-				$args['date'] = array(
-					'start' => ! empty( $this->data['donor_export_start_date'] ) ? date( 'Y-n-d 00:00:00', strtotime( $this->data['donor_export_start_date'] ) ) : date( 'Y-n-d 23:59:59', '1970-1-01 00:00:00' ),
-					'end'   => ! empty( $this->data['donor_export_end_date'] ) ? date( 'Y-n-d 23:59:59', strtotime( $this->data['donor_export_end_date'] ) ) : date( 'Y-n-d 23:59:59', current_time( 'timestamp' ) ),
-				);
+
+				// Start date.
+				$start_date = ! empty( $this->data['donor_export_start_date'] ) ? sanitize_text_field( $this->data['donor_export_start_date'] ) : '';
+				if ( ! empty( $start_date ) ) {
+					$start_date            = date( 'Y-m-d', strtotime( $start_date ) );
+					$args['date']['start'] = $start_date;
+				}
+
+				// End date.
+				$end_date            = ! empty( $this->data['donor_export_end_date'] )
+					? date( 'Y-m-d', strtotime( sanitize_text_field( $this->data['donor_export_end_date'] ) ))
+					: date( 'Y-m-d', current_time( 'timestamp' ) );
+				$end_date = "{$end_date} 23:59:59";
+				$args['date']['end'] = $end_date;
+
 			}
 
 			$donors = Give()->donors->get_donors( $args );
@@ -295,9 +335,7 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 					continue;
 				}
 
-				$payment                    = new Give_Payment( $donor->payment_ids );
-				$donor->donation_form_title = $payment->form_title;
-				$data[]                     = $this->set_donor_data( $i, $data, $donor );
+				$data[] = $this->set_donor_data( $i, $data, $donor );
 				$i ++;
 			}
 		}// End if().
@@ -340,9 +378,9 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 	/**
 	 * Set Donor Data
 	 *
-	 * @param int        $i
-	 * @param array      $data
-	 * @param Give_Donor $donor
+	 * @param int $i CSV line.
+	 * @param array $data Donor CSV data.
+	 * @param object $donor Donor data.
 	 *
 	 * @return mixed
 	 */
@@ -350,15 +388,16 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 
 		$columns = $this->csv_cols();
 
-		// Set address variable
+		// Set address variable.
 		$address = '';
-		if ( isset( $donor->user_id ) && $donor->user_id > 0 ) {
-			$address = give_get_donor_address( $donor->user_id );
+		if ( isset( $donor->id ) && $donor->id > 0 ) {
+			$address = give_get_donor_address( $donor->id );
 		}
 
-		// Set columns
+		// Set columns.
 		if ( ! empty( $columns['full_name'] ) ) {
-			$data[ $i ]['full_name'] = $donor->name;
+			$donor_name              = give_get_donor_name_by( $donor->id, 'donor' );
+			$data[ $i ]['full_name'] = $donor_name;
 		}
 		if ( ! empty( $columns['email'] ) ) {
 			$data[ $i ]['email'] = $donor->email;
@@ -375,11 +414,8 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 		if ( ! empty( $columns['userid'] ) ) {
 			$data[ $i ]['userid'] = ! empty( $donor->user_id ) ? $donor->user_id : '';
 		}
-		if ( ! empty( $columns['donation_form'] ) ) {
-			$data[ $i ]['donation_form'] = ! empty( $donor->donation_form_title ) ? $donor->donation_form_title : '';
-		}
-		if ( ! empty( $columns['date_first_donated'] ) ) {
-			$data[ $i ]['date_first_donated'] = date_i18n( give_date_format(), strtotime( $donor->date_created ) );
+		if ( ! empty( $columns['donor_created_date'] ) ) {
+			$data[ $i ]['donor_created_date'] = date_i18n( give_date_format(), strtotime( $donor->date_created ) );
 		}
 		if ( ! empty( $columns['donations'] ) ) {
 			$data[ $i ]['donations'] = $donor->purchase_count;
@@ -388,6 +424,8 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 			$data[ $i ]['donation_sum'] = give_format_amount( $donor->purchase_value, array( 'sanitize' => false ) );
 		}
 
+		$data[ $i ] = apply_filters( 'give_export_set_donor_data', $data[ $i ], $donor );
+
 		return $data[ $i ];
 
 	}
@@ -395,7 +433,7 @@ class Give_Batch_Donors_Export extends Give_Batch_Export {
 	/**
 	 * Unset the properties specific to the donors export.
 	 *
-	 * @param array             $request
+	 * @param array $request
 	 * @param Give_Batch_Export $export
 	 */
 	public function unset_properties( $request, $export ) {

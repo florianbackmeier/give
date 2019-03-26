@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Classes/DB Payment Meta
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -38,7 +38,7 @@ class Give_DB_Payment_Meta extends Give_DB_Meta {
 	 * @access protected
 	 * @var bool
 	 */
-	protected $meta_type = 'payment';
+	protected $meta_type = 'donation';
 
 	/**
 	 * Give_DB_Payment_Meta constructor.
@@ -50,11 +50,15 @@ class Give_DB_Payment_Meta extends Give_DB_Meta {
 		/* @var WPDB $wpdb */
 		global $wpdb;
 
-		$wpdb->paymentmeta = $this->table_name = $wpdb->prefix . 'give_paymentmeta';
-		$this->primary_key = 'meta_id';
+		// @todo: We leave $wpdb->paymentmeta for backward compatibility, use $wpdb->donationmeta instead. We can remove it after 2.1.3.
+		$wpdb->paymentmeta = $wpdb->donationmeta = $this->table_name = $wpdb->prefix . 'give_donationmeta';
 		$this->version     = '1.0';
 
-		$this->register_table();
+		// Backward compatibility.
+		if ( ! give_has_upgrade_completed( 'v220_rename_donation_meta_type' ) ) {
+			$this->meta_type = 'payment';
+			$wpdb->paymentmeta = $wpdb->donationmeta = $this->table_name = $wpdb->prefix . 'give_paymentmeta';
+		}
 
 		parent::__construct();
 	}
@@ -69,40 +73,11 @@ class Give_DB_Payment_Meta extends Give_DB_Meta {
 	 */
 	public function get_columns() {
 		return array(
-			'meta_id'    => '%d',
-			'payment_id' => '%d',
-			'meta_key'   => '%s',
-			'meta_value' => '%s',
+			'meta_id'               => '%d',
+			"{$this->meta_type}_id" => '%d',
+			'meta_key'              => '%s',
+			'meta_value'            => '%s',
 		);
-	}
-
-	/**
-	 * Create the table
-	 *
-	 * @access public
-	 * @since  2.0
-	 *
-	 * @return void
-	 */
-	public function create_table() {
-		global $wpdb;
-
-		$charset_collate = $wpdb->get_charset_collate();
-
-		$sql = "CREATE TABLE {$this->table_name} (
-			meta_id bigint(20) NOT NULL AUTO_INCREMENT,
-			payment_id bigint(20) NOT NULL,
-			meta_key varchar(255) DEFAULT NULL,
-			meta_value longtext,
-			PRIMARY KEY  (meta_id),
-			KEY payment_id (payment_id),
-			KEY meta_key (meta_key)
-			) {$charset_collate};";
-
-		require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-		dbDelta( $sql );
-
-		update_option( $this->table_name . '_db_version', $this->version );
 	}
 
 	/**

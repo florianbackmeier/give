@@ -102,7 +102,7 @@ class Give_Stats {
 			'this_quarter' => esc_html__( 'This Quarter', 'give' ),
 			'last_quarter' => esc_html__( 'Last Quarter', 'give' ),
 			'this_year'    => esc_html__( 'This Year', 'give' ),
-			'last_year'    => esc_html__( 'Last Year', 'give' )
+			'last_year'    => esc_html__( 'Last Year', 'give' ),
 		);
 
 		return apply_filters( 'give_stats_predefined_dates', $predefined );
@@ -130,7 +130,6 @@ class Give_Stats {
 		if ( empty( $_end_date ) ) {
 			$_end_date = $_start_date;
 		}
-
 		$this->start_date = $this->convert_date( $_start_date );
 		$this->end_date   = $this->convert_date( $_end_date, true );
 	}
@@ -234,9 +233,9 @@ class Give_Stats {
 				case 'this_week' :
 
 					$days_to_week_start = ( date( 'w', current_time( 'timestamp' ) ) - 1 ) * 60 * 60 * 24;
-					$today              = date( 'd', current_time( 'timestamp' ) ) * 60 * 60 * 24;
+					$today              = date( 'j', current_time( 'timestamp' ) ) * 60 * 60 * 24;
 
-					if ( $today < $days_to_week_start ) {
+					if ( $today <= $days_to_week_start ) {
 
 						if ( $month > 1 ) {
 							$month -= 1;
@@ -267,9 +266,9 @@ class Give_Stats {
 				case 'last_week' :
 
 					$days_to_week_start = ( date( 'w', current_time( 'timestamp' ) ) - 1 ) * 60 * 60 * 24;
-					$today              = date( 'd', current_time( 'timestamp' ) ) * 60 * 60 * 24;
+					$today              = date( 'j', current_time( 'timestamp' ) ) * 60 * 60 * 24;
 
-					if ( $today < $days_to_week_start ) {
+					if ( $today <= $days_to_week_start ) {
 
 						if ( $month > 1 ) {
 							$month -= 1;

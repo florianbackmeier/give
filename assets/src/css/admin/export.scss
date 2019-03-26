@@ -1,0 +1,163 @@
+/**
+ * Give Export
+ *
+ * @package     Give
+ * @subpackage  SCSS/Admin
+ * @copyright   Copyright (c) 2017, GiveWP
+ * @license     http://opensource.org/licenses/gpl-2.0.php GNU Public License
+*/
+
+// Tools page: fix ajax search user list hide bug
+.give-tools-setting-page {
+	#give-export_donations-form {
+		table {
+
+			padding-left: 10px;
+
+			tbody {
+				h2 {
+					padding: 8px 0 0 0;
+				}
+
+				td.row-title {
+					width: 30%;
+					vertical-align: top;
+				}
+
+				td {
+					ul.give-export-option-ul {
+						margin-top: 5px;
+					}
+				}
+
+				p.give-field-description {
+					display: table;
+					width: 100%;
+				}
+
+				.add-notices {
+					margin-top: 15px;
+
+					.give-progress {
+						margin-top: 7px;
+					}
+				}
+
+				.chosen-container-multi {
+					.chosen-choices {
+						min-height: 30px;
+
+						li {
+							margin: 4px 4px 4px 0;
+						}
+					}
+				}
+			}
+		}
+
+		.give-export-option {
+			display: flex;
+			flex-flow: row wrap;
+			border-top: 1px solid #e5e5e5;
+			border-left: 1px solid #e5e5e5;
+
+			ul {
+				margin-bottom: 1rem;
+
+				li {
+					position: relative;
+					margin-bottom: .70rem;
+					padding: 0 1rem;
+
+					label {
+						display: block;
+						padding-left: 22px;
+
+						input {
+							position: absolute;
+							top: 6px;
+							left: 15px;
+						}
+					}
+				}
+
+				.give-export-option-label {
+					font-size: 15px;
+					font-weight: 500;
+					border-bottom: 1px solid #e5e5e5;
+					margin-bottom: 1rem;
+					padding: 1rem;
+				}
+			}
+
+			& > li {
+				border-right: 1px solid #e5e5e5;
+				border-bottom: 1px solid #e5e5e5;
+				width: 33%;
+				margin-bottom: 0;
+			}
+		}
+	}
+
+	.give-export-donors {
+		.give-progress {
+			margin-top: 7px;
+		}
+	}
+}
+
+//-------------------------------------
+// Export Form
+// -------------------------------------
+
+#give-export-donations {
+	.give_forms_categories,
+	.give_forms_tags {
+		input {
+			color: #999;
+		}
+
+		min-width: 250px;
+		margin: 0 0 10px 0;
+		display: block;
+	}
+
+	div.chosen-container {
+		ul.chosen-choices {
+			input.chosen-search-input {
+				border: 1px solid #ddd;
+				height: 20px;
+			}
+
+			border: 1px solid #ddd;
+		}
+	}
+
+	select {
+		vertical-align: inherit;
+		margin: 0;
+		height: 26px;
+		line-height: 26px;
+		border: 1px solid #ddd;
+	}
+}
+
+@media only screen and ( max-width: 1080px ) {
+	.give-tools-setting-page #give-export_donations-form .give-export-option > li {
+		width: 49.5%;
+	}
+}
+
+@media only screen and ( max-width: 782px ) {
+	.give-tools-setting-page #give-export_donations-form .give-export-option > li {
+		width: 49.5%;
+	}
+
+	.give-tools-setting-page #give-export_donations-form .give-export-option ul li label {
+		padding-left: 32px;
+	}
+
+	.give-tools-setting-page #give-export_donations-form .give-export-option ul li label input {
+		top: 0;
+	}
+}

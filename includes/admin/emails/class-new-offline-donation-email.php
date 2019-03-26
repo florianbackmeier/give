@@ -6,7 +6,7 @@
  *
  * @package     Give
  * @subpackage  Classes/Emails
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       2.0
  */
@@ -41,7 +41,7 @@ if ( ! class_exists( 'Give_New_Offline_Donation_Email' ) ) :
 			$this->load( array(
 				'id'                           => 'new-offline-donation',
 				'label'                        => __( 'New Offline Donation', 'give' ),
-				'description'                  => __( 'Donation Notification will be sent to admin when new offline donation received.', 'give' ),
+				'description'                  => __( 'Sent to designated recipient(s) for a new (pending) offline donation.', 'give' ),
 				'has_recipient_field'          => true,
 				'notification_status'          => give_is_gateway_active( 'offline' ) ? 'enabled' : 'disabled',
 				'notification_status_editable' => false,
@@ -49,7 +49,16 @@ if ( ! class_exists( 'Give_New_Offline_Donation_Email' ) ) :
 					'payment_method' => esc_html__( 'Offline', 'give' ),
 				),
 				'default_email_subject'        => $this->get_default_email_subject(),
-				'default_email_message'        => $this->get_default_email_message(),
+				'default_email_message'        => ( false !== give_get_option( 'new-offline-donation_email_message' ) ) ? give_get_option( 'new-offline-donation_email_message' ) : give_get_default_donation_notification_email(),
+				'default_email_header'         => __( 'New Offline Donation!', 'give' ),
+				'notices' => array(
+					'non-notification-status-editable' => sprintf(
+						'%1$s <a href="%2$s">%3$s &raquo;</a>',
+						__( 'This notification is automatically toggled based on whether the gateway is enabled or not.', 'give' ),
+						esc_url( admin_url('edit.php?post_type=give_forms&page=give-settings&tab=gateways&section=offline-donations') ),
+						__( 'Edit Setting', 'give' )
+					)
+				),
 			) );
 
 			add_action( 'give_insert_payment', array( $this, 'setup_email_notification' ) );
@@ -277,8 +286,32 @@ if ( ! class_exists( 'Give_New_Offline_Donation_Email' ) ) :
 				|| $notification_status !== $update_options[ "{$this->config['id']}_notification" ]
 			) {
 				$update_options[ "{$this->config['id']}_notification" ] = $notification_status;
-				update_option( $option_name, $update_options );
+				update_option( $option_name, $update_options, false );
 			}
+		}
+
+		/**
+		 * Register email settings to form metabox.
+		 *
+		 * @since  2.0
+		 * @access public
+		 *
+		 * @param array $settings
+		 * @param int   $form_id
+		 *
+		 * @return array
+		 */
+		public function add_metabox_setting_field( $settings, $form_id ) {
+
+			if ( in_array( 'offline', array_keys( give_get_enabled_payment_gateways($form_id) ) ) ) {
+				$settings[] = array(
+					'id'     => $this->config['id'],
+					'title'  => $this->config['label'],
+					'fields' => $this->get_setting_fields( $form_id ),
+				);
+			}
+
+			return $settings;
 		}
 	}
 

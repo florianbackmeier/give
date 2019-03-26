@@ -38,6 +38,14 @@ class GIVE_CLI_COMMAND {
 	 */
 	private $api;
 
+	/**
+	 * This helps to get unique name.
+	 *
+	 * @since 1.8.17
+	 * @var array
+	 */
+	private $new_donor_names = array();
+
 
 	/**
 	 * GIVE_CLI_Command constructor.
@@ -66,10 +74,10 @@ class GIVE_CLI_COMMAND {
 	 *
 	 * @return        void
 	 *
-	 * @subcommand    logo
+	 * @subcommand    ascii
 	 */
 	public function ascii( $args, $assoc_args ) {
-		WP_CLI::log( file_get_contents( GIVE_PLUGIN_DIR . 'assets/images/give-ascii-logo.txt' ) );
+		WP_CLI::log( file_get_contents( GIVE_PLUGIN_DIR . 'assets/dist/images/give-ascii-logo.txt' ) );
 	}
 
 
@@ -228,7 +236,7 @@ class GIVE_CLI_COMMAND {
 
 										switch ( $subheading ) {
 											case 'earnings':
-												WP_CLI::log( $this->color_message( $subheading . ': ', give_currency_filter( $subdata ) ) );
+												WP_CLI::log( $this->color_message( $subheading . ': ', give_currency_filter( $subdata, array( 'decode_currency' => true ) ) ) );
 												break;
 											default:
 												WP_CLI::log( $this->color_message( $subheading . ': ', $subdata ) );
@@ -348,6 +356,7 @@ class GIVE_CLI_COMMAND {
 	 *
 	 * ## EXAMPLES
 	 *
+	 * wp give donors
 	 * wp give donors --id=103
 	 * wp give donors --email=john@test.com
 	 * wp give donors --create=1 --email=john@test.com
@@ -378,6 +387,11 @@ class GIVE_CLI_COMMAND {
 		$start    = time();
 
 		if ( $create ) {
+			if ( 80 < $create ) {
+				WP_CLI::warning( 'Currently we can only generate maximum 80 donors.', 'give' );
+				$create = 80;
+			}
+
 			$number = 1;
 
 			if ( isset( $assoc_args['email'] ) && ! is_email( $email ) ) {
@@ -393,11 +407,8 @@ class GIVE_CLI_COMMAND {
 			}
 
 			for ( $i = 0; $i < $number; $i ++ ) {
-				if ( ! $email ) {
-
-					// Generate fake email.
-					$email = 'customer-' . uniqid() . '@test.com';
-				}
+				$name  = $name ? $name : $this->get_random_name();
+				$email = $email ? $email : $this->get_random_email( $name );
 
 				$args = array(
 					'email' => $email,
@@ -412,8 +423,8 @@ class GIVE_CLI_COMMAND {
 					WP_CLI::error( __( 'Failed to create donor', 'give' ) );
 				}
 
-				// Reset email to false so it is generated on the next loop (if creating donors).
-				$email = false;
+				// Reset email and name to false so it is generated on the next loop (if creating donors).
+				$email = $name = false;
 			}
 
 			WP_CLI::line( $this->color_message( sprintf( __( '%1$d donors created in %2$d seconds', 'give' ), $number, time() - $start ) ) );
@@ -481,13 +492,16 @@ class GIVE_CLI_COMMAND {
 
 								switch ( $heading ) {
 									case 'total_spent':
-										$table_row[] = give_currency_filter( $data );
+										$table_row[] = give_currency_filter( $data, array( 'decode_currency' => true ) );
 										break;
 
 									default:
 										$table_row[] = $data;
 								}
 							}
+							break;
+
+						case 'address':
 							break;
 
 						case 'info':
@@ -655,13 +669,14 @@ class GIVE_CLI_COMMAND {
 	 * : A specific date range to retrieve stats for
 	 *
 	 * [--start-date=<date>]
-	 * : The start date of a date range to retrieve stats for
+	 * : The start date of a date range to retrieve stats for. Date format is MM/DD/YYYY
 	 *
 	 * [--end-date=<date>]
-	 * : The end date of a date range to retrieve stats for
+	 * : The end date of a date range to retrieve stats for. Date format is MM/DD/YYYY
 	 *
 	 * ## EXAMPLES
 	 *
+	 * wp give report
 	 * wp give report --date=this_month
 	 * wp give report --start-date=01/02/2014 --end-date=02/23/2014
 	 * wp give report --date=last_year
@@ -696,7 +711,7 @@ class GIVE_CLI_COMMAND {
 		$earnings = $stats->get_earnings( $form_id, $start_date, $end_date );
 		$sales    = $stats->get_sales( $form_id, $start_date, $end_date );
 
-		WP_CLI::line( $this->color_message( __( 'Earnings', 'give' ), give_currency_filter( $earnings ) ) );
+		WP_CLI::line( $this->color_message( __( 'Earnings', 'give' ), give_currency_filter( $earnings, array( 'decode_currency' => true ) ) ) );
 		WP_CLI::line( $this->color_message( __( 'Sales', 'give' ), $sales ) );
 	}
 
@@ -706,7 +721,7 @@ class GIVE_CLI_COMMAND {
 	 *
 	 * ## OPTIONS
 	 *
-	 * [--action=<cache_action>]
+	 * --action=<cache_action>
 	 * : Value of this parameter can be delete (in case you want to delete all stat cache).
 	 *
 	 * ## EXAMPLES
@@ -735,7 +750,7 @@ class GIVE_CLI_COMMAND {
 		}
 
 		switch ( $action ) {
-			case 'delete' :
+			case 'delete':
 				// Reset counter.
 				self::$counter = 1;
 
@@ -908,7 +923,7 @@ class GIVE_CLI_COMMAND {
 		/* @var Give_Payment|object $donation Payment object. */
 		foreach ( $donations as $donation ) {
 
-			if ( in_array( $donation->customer_id, $skip_donors ) ) {
+			if ( in_array( $donation->customer_id, $skip_donors, true ) ) {
 				continue;
 			}
 
@@ -922,5 +937,352 @@ class GIVE_CLI_COMMAND {
 		}
 
 		return $donors;
+	}
+
+	/**
+	 * Get random user name
+	 *
+	 * @since 1.8.17
+	 * @return string
+	 */
+	private function get_random_name() {
+		// First names.
+		$names = array(
+			'Devin',
+			'Christopher',
+			'Ryan',
+			'Ethan',
+			'John',
+			'Zoey',
+			'Sarah',
+			'Michelle',
+			'Samantha',
+		);
+
+		// Surnames.
+		$surnames = array(
+			'Walker',
+			'Josh',
+			'Thompson',
+			'Anderson',
+			'Johnson',
+			'Tremblay',
+			'Peltier',
+			'Cunningham',
+			'Simpson',
+			'Mercado',
+			'Sellers',
+		);
+
+		// Generate a random forename.
+		$random_name = $names[ mt_rand( 0, sizeof( $names ) - 1 ) ];
+
+		// Generate a random surname.
+		$random_surname = $surnames[ mt_rand( 0, sizeof( $surnames ) - 1 ) ];
+
+		// Generate name.
+		$name = "{$random_name} {$random_surname}";
+
+		if ( in_array( $name, $this->new_donor_names ) ) {
+			$name = $this->get_random_name();
+		}
+
+		// Collect new donor names.
+		$this->new_donor_names[] = $name;
+
+		return $name;
+	}
+
+	/**
+	 * Get random email
+	 *
+	 * @since 1.8.17
+	 *
+	 * @param string $name
+	 *
+	 * @return string
+	 */
+	private function get_random_email( $name ) {
+		return implode( '.', explode( ' ', strtolower( $name ) ) ) . '@test.com';
+	}
+
+	/**
+	 * Toggle settings for Give's test mode.
+	 *
+	 * [--enable]
+	 * : Enable Give's test mode
+	 *
+	 * [--disable]
+	 * : Enable Give's test mode
+	 *
+	 * @when after_wp_load
+	 * @subcommand test-mode
+	 */
+	public function test_mode( $args, $assoc ) {
+
+		// Return if associative arguments are not specified.
+		if ( empty( $assoc ) ) {
+			WP_CLI::error( "--enable or --disable flag is missing." );
+			return;
+		}
+
+		$enabled_gateways = give_get_option( 'gateways' );
+		$default_gateway  = give_get_option( 'default_gateway' );
+
+
+		// Enable Test Mode.
+		if ( true === WP_CLI\Utils\get_flag_value( $assoc, 'enable' ) ) {
+
+			// Set `Test Mode` to `enabled`.
+			give_update_option( 'test_mode', 'enabled' );
+
+
+			// Enable `Test Donation` gateway.
+			$enabled_gateways['manual'] = "1";
+			give_update_option( 'gateways', $enabled_gateways );
+
+
+			// Set `Test Donation` as default gateway.
+			add_option( 'give_test_mode_default_gateway', $default_gateway );
+			give_update_option( 'default_gateway', 'manual' );
+
+
+			// Show success message on completion.
+			WP_CLI::success( 'Give Test mode enabled' );
+		}
+
+		// Disable Test Mode.
+		if ( true === WP_CLI\Utils\get_flag_value( $assoc, 'disable' ) ) {
+
+			// Set `Test Mode` to `disabled`.
+			give_update_option( 'test_mode', 'disabled' );
+
+
+			// Disable `Test Donation` gateway.
+			unset( $enabled_gateways['manual'] );
+			give_update_option( 'gateways', $enabled_gateways );
+
+
+			// Backup `Default Gateway` setting for restore on test mode disable.
+			$default_gateway_backup = get_option( 'give_test_mode_default_gateway' );
+			give_update_option( 'default_gateway', $default_gateway_backup );
+			delete_option( 'give_test_mode_default_gateway' );
+
+
+			// Show success message on completion.
+			WP_CLI::success( 'Give Test mode disabled' );
+		}
+	}
+
+
+	/**
+	 * Checks if the given path has a give repository installed
+	 * or not.
+	 *
+	 * @param string $repo_path Path to a Give Addon.
+	 *
+	 * @since 2.1.3
+	 *
+	 * @return boolean
+	 */
+	private function is_git_repo( $repo_path ) {
+		if ( is_dir( "{$repo_path}.git" ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+
+	/**
+	 * Gets the current branch name of a Give Addon.
+	 *
+	 * @param string $repo_path Path to a Give Addon.
+	 *
+	 * @since 2.1.3
+	 *
+	 * @return string
+	 */
+	private function get_git_current_branch( $repo_path ) {
+
+		exec( "cd $repo_path && git branch | grep '\*'", $branch_names );
+
+		$branch_name = trim( strtolower( str_replace( '* ', '', $branch_names[0] ) ) );
+
+		return $branch_name;
+	}
+
+
+	/**
+	 * Updates the current branch of Give Addons.
+	 * Uses the remote origin to pull the latest code.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--name=<name>]
+	 * : Update a single addon.
+	 *
+	 * [--exclude=<names>]
+	 * : Names of addons that should be excluded from updating.
+	 *
+	 * ## EXAMPLES
+	 * 	wp give addon-update
+	 * 	wp give addon-update --name="Give-Stripe"
+	 * 	wp give addon-update --exclude="Give-Stripe, Give-Recurring-Donations"
+	 *
+	 * @param array $pos   Array of positional arguments.
+	 * @param array $assoc Array of associative arguments.
+	 *
+	 * @since 2.1.3
+	 *
+	 * @subcommand addon-update
+	 */
+	public function addon_update( $pos, $assoc ) {
+
+		/**
+		 * Only 1 associative argument should be passed.
+		 * It can be either `--name` or `--exclude`
+		 */
+		if ( count( $assoc ) > 1 ) {
+			WP_CLI::error( __( 'Too many associative arguments.', 'give' ) );
+		}
+
+		/**
+		 * Update a single Give addon.
+		 */
+		if ( false !== ( $addon_name = WP_CLI\Utils\get_flag_value( $assoc, 'name', false ) ) ) {
+			$give_addon_path = glob( WP_CONTENT_DIR . "/plugins/$addon_name/" , GLOB_ONLYDIR );
+
+			/**
+			 * Display error if the plugin (addon) name entered does
+			 * not exist.
+			 */
+			if ( empty( $give_addon_path ) ) {
+				WP_CLI::error( sprintf( __( "The Give addon '%s' does not exist.", 'give' ), $addon_name ) );
+			}
+
+			/**
+			 * If the directory does not contain a Git
+			 * repository, then display error and halt.
+			 */
+			if ( ! $this->is_git_repo( $give_addon_path[0] ) ) {
+				WP_CLI::error( __( 'This is not a Git repo', 'give' ) );
+			}
+
+			/**
+			 * Get the current branch name. This branch will be updated next.
+			 */
+			$branch_name = $this->get_git_current_branch( $give_addon_path[0] );
+
+			/**
+			 * Take the latest pull of the current branch, i.e.;
+			 * sync it with origin.
+			 */
+			passthru( "cd $give_addon_path[0] && git pull origin $branch_name", $return_var );
+
+			/**
+			 * Show success/error messages depending on whether the
+			 * current branch of the addon was updated or not.
+			 */
+			if ( 0 === $return_var ) {
+				WP_CLI::success( sprintf( __( "The Give addon '%s' is up-to-date with origin." ), $addon_name ) );
+
+				return;
+			} elseif ( 1 === $return_var ) {
+				WP_CLI::error( sprintf( __( "The Give addon '%s' was not updated." ), $addon_name ) );
+			}
+		}
+
+		/**
+		 * Convert the comma-separated string of Give-addons in the
+		 * excluded list into array.
+		 */
+		$addon_names = WP_CLI\Utils\get_flag_value( $assoc, 'exclude', array() );
+		if ( ! empty( $addon_names ) ) {
+			$addon_names = array_map( 'trim', explode( ',', $addon_names ) );
+		}
+
+		/**
+		 * Get directory paths of all the addons including
+		 * Give Core.
+		 */
+		$give_addon_directories = glob( WP_CONTENT_DIR . '/plugins/[gG]ive*/' , GLOB_ONLYDIR );
+
+		foreach ( $give_addon_directories as $repo ) {
+
+			/**
+			 * Extract the plugin/addon folder name
+			 * from the absolute path.
+			 */
+			$plugin_name = basename( $repo );
+
+			/**
+			 * If the Give addon directory does not contain
+			 * a Git repo, then continue.
+			 */
+			if ( ! $this->is_git_repo( $repo ) ) {
+				WP_CLI::line(
+					sprintf(
+						__( "%s: '%s' does not contain git repo.", 'give' ),
+						WP_CLI::colorize( '%RError%n' ),
+						$plugin_name
+					)
+				);
+
+				continue;
+			}
+
+			/**
+			 * Continue if the Give addon name is in the exlusion list.
+			 */
+			if ( in_array( $plugin_name, $addon_names, true ) ) {
+				continue;
+			}
+
+			/* Get the current branch name */
+			$branch_name = $this->get_git_current_branch( $repo );
+
+			/**
+			 * Show a colorized (CYAN) title for each addon/plugin
+			 * before a pull.
+			 */
+			WP_CLI::line( WP_CLI::colorize( "> %CUpdating $plugin_name | $branch_name%n" ) );
+
+			/**
+			 * Git pull from the current branch using
+			 * remote `origin`.
+			 */
+			if ( ! empty( $branch_name ) ) {
+				passthru( "cd $repo && git pull origin $branch_name", $return_var );
+			}
+
+			$items[] = array(
+				'Give Addon' => $plugin_name,
+				'Branch'     => $branch_name,
+				'Remote'     => 'origin',
+				'Status'     => ( 0 === $return_var )
+					? __( 'Success', 'give' )
+					: __( 'Failed', 'give' ),
+			);
+
+			/**
+			 * Leave a blank line for aesthetics.
+			 */
+			WP_CLI::line();
+		}
+
+		/**
+		 * Display final results in a tabular format.
+		 */
+		WP_CLI\Utils\format_items(
+			'table',
+			$items,
+			array(
+				'Give Addon',
+				'Branch',
+				'Remote',
+				'Status',
+			)
+		);
 	}
 }

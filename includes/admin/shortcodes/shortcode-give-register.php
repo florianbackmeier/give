@@ -4,7 +4,7 @@
  *
  * @package     Give
  * @subpackage  Admin
- * @copyright   Copyright (c) 2016, WordImpress
+ * @copyright   Copyright (c) 2016, GiveWP
  * @license     https://opensource.org/licenses/gpl-license GNU Public License
  * @since       1.3.0
  */
@@ -44,6 +44,11 @@ class Give_Shortcode_Register extends Give_Shortcode_Generator {
 				'name'     => 'redirect',
 				'minWidth' => 320,
 				'tooltip'  => esc_attr__( 'Enter an URL here to redirect to after registering.', 'give' ),
+			),
+			array(
+				'type' => 'docs_link',
+				'text' => esc_html__( 'Learn more about the Register Shortcode', 'give' ),
+				'link' => 'http://docs.givewp.com/shortcode-give-register',
 			),
 		);
 	}
