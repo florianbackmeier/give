@@ -401,11 +401,12 @@ describe( 'Display Option: All fields', () => {
 		])
 	}, 100000 )
 
-	it ( 'EXISTENCE: verify donation confirmation of the first form', async () => {
-		await expect( page ).toMatch( 'Payment Complete: Thank you for your donation.' )
-		await expect( page ).toMatch( 'Mr. Jim Halpert' )
-		await expect( page ).toMatch( '$20.00' )
-	})
+	// Verify the donation that was made above.
+	give.utility.fn.verifyDonation( page, [
+		'Payment Complete: Thank you for your donation.',
+		'Mr. Jim Halpert',
+		'$20.00'
+	])
 
 	it( 'INTERACTION: redirect to the shortcode page', async () => {
 		await Promise.all([
@@ -418,23 +419,24 @@ describe( 'Display Option: All fields', () => {
 	})
 
 	it( 'INTERACTION: fill second form and donate', async () => {
-		await expect( page ).toClick( '.give-display-reveal button', { text: 'Gold' } )
 
 		await expect( page ).toFillForm( '.give-display-reveal .give-form', {
 			give_first: 'David',
 			give_last: 'Wallace',
 			give_email: 'david.wallace@gmail.com',
-		}, 10000 )
+		}, 10000 );
 
 		await Promise.all([
+			await page.click( '.give-display-reveal .give-btn-level-2' ),
 			page.click( '.give-display-reveal .give-submit' ),
 			page.waitForNavigation()
-		])
+		]);
 	}, 100000 )
 
-	it ( 'EXISTENCE: verify donation confirmation of the second form', async () => {
-		await expect( page ).toMatch( 'Payment Complete: Thank you for your donation.' )
-		await expect( page ).toMatch( 'Mr. David Wallace' )
-		await expect( page ).toMatch( '$30.00' )
-	})
+	// Verify the donation that was made above.
+	give.utility.fn.verifyDonation( page, [
+		'Payment Complete: Thank you for your donation.',
+		'Mr. David Wallace',
+		'$30.00'
+	])
 })
