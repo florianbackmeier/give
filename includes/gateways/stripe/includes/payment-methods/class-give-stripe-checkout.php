@@ -41,6 +41,7 @@ if ( ! class_exists( 'Give_Stripe_Checkout' ) ) {
 
 			// Remove CC fieldset.
 			add_action( 'give_stripe_checkout_cc_form', '__return_false' );
+			add_action( 'wp_footer', array( $this, 'redirect_to_checkout' ) );
 
 			add_filter( 'give_payment_gateways', array( $this, 'register_gateway' ) );
 		}
@@ -129,7 +130,6 @@ if ( ! class_exists( 'Give_Stripe_Checkout' ) ) {
 					// Create Checkout Session.
 					$session = $this->create_checkout_session( $donation_data );
 
-// echo "<pre>"; print_r($session); die();
 					// Save Stripe Customer ID to Donation note, Donor and Donation for future reference.
 					give_insert_payment_note( $donation_id, 'Stripe Customer ID: ' . $stripe_customer_id );
 					$this->save_stripe_customer_id( $stripe_customer_id, $donation_id );
@@ -137,27 +137,66 @@ if ( ! class_exists( 'Give_Stripe_Checkout' ) ) {
 
 					// Save donation summary to donation.
 					give_update_meta( $donation_id, '_give_stripe_donation_summary', $donation_summary );
-echo give_stripe_get_publishable_key(); die();
-					?>
-					<script>
-						const stripe = Stripe(give_stripe_get_publishable_key());
-						stripe.redirectToCheckout({
-							// Make the id field from the Checkout Session creation API response
-							// available to this file, so you can provide it as parameter here
-							// instead of the {{CHECKOUT_SESSION_ID}} placeholder.
-							sessionId: '<?php echo $session->id; ?>'
-						}).then( ( result ) => {
-							console.log(result);
-							// If `redirectToCheckout` fails due to a browser or network
-							// error, display the localized error message to your customer
-							// using `result.error.message`.
-						});
-					</script>
-					<?php
 
+					// Redirect to show loading area to trigger redirectToCheckout client side.
+					wp_safe_redirect( add_query_arg(
+						array(
+							'action'  => 'checkout_processing',
+							'session' => $session->id
+						),
+						site_url()
+					) );
+
+					// Don't execute code further.
+					give_die();
 				}
 			}
 
+		}
+
+		/**
+		 * Redirect to Checkout.
+		 *
+		 * @since  2.5.1
+		 * @access public
+		 *
+		 * @return void
+		 */
+		public function redirect_to_checkout() {
+
+			$get_data          = give_clean( $_GET );
+			$publishable_key   = give_stripe_get_publishable_key();
+			$session_id        = ! empty( $get_data['session'] ) ? $get_data['session'] : false;
+			$action            = ! empty( $get_data['action'] ) ? $get_data['action'] : false;
+			$stripe_account_id = give_get_option( 'give_stripe_user_id' );
+
+			// Bailout, if action is not checkout processing.
+			if ( 'checkout_processing' !== $action ) {
+				return;
+			}
+
+			// Bailout, if session id doesn't exists.
+			if ( ! $session_id ) {
+				return;
+			}
+			?>
+			<script>
+				const stripe = Stripe( '<?php echo $publishable_key; ?>', {
+					'stripeAccount': '<?php echo $stripe_account_id; ?>'
+				} );
+				stripe.redirectToCheckout({
+					// Make the id field from the Checkout Session creation API response
+					// available to this file, so you can provide it as parameter here
+					// instead of the {{CHECKOUT_SESSION_ID}} placeholder.
+					sessionId: '<?php echo $session_id; ?>'
+				}).then( ( result ) => {
+					console.log(result);
+					// If `redirectToCheckout` fails due to a browser or network
+					// error, display the localized error message to your customer
+					// using `result.error.message`.
+				});
+			</script>
+			<?php
 		}
 
 		/**
@@ -175,7 +214,7 @@ echo give_stripe_get_publishable_key(); die();
 			try {
 
 				$form_id   = ! empty( $data['post_data']['give-form-id'] ) ? intval( $data['post_data']['give-form-id'] ) : 0;
-				$form_name = ! empty( $data['post_data']['give-form-title'] ) ? intval( $data['post_data']['give-form-title'] ) : false;
+				$form_name = ! empty( $data['post_data']['give-form-title'] ) ? $data['post_data']['give-form-title'] : false;
 				$amount    = ! empty( $data['post_data']['give-amount'] ) ? $data['post_data']['give-amount'] : 0;
 
 				$session = \Stripe\Checkout\Session::create(
@@ -195,7 +234,7 @@ echo give_stripe_get_publishable_key(); die();
 								array(
 									'name'        => $form_name,
 									'description' => $data['description'],
-									'images'      => ['https://example.com/t-shirt.png'],
+									'images'      => [ get_the_post_thumbnail( $form_id ) ],
 									'amount'      => give_stripe_dollars_to_cents( $amount ),
 									'currency'    => give_get_currency( $form_id ),
 									'quantity'    => 1,
@@ -205,7 +244,8 @@ echo give_stripe_get_publishable_key(); die();
 							'success_url'          => give_get_success_page_uri(),
 							'cancel_url'           => give_get_failed_transaction_uri(),
 						)
-					)
+					),
+					give_stripe_get_connected_account_options()
 				);
 
 				return $session;
